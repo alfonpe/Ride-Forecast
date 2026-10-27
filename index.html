@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ride Forecast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Layout: control bar on top, then summary + notes, map beside checkpoints readout, chart grid, full checkpoint table. */
+:root{
+  --bg:#F2F3F0; --surface:#FFFFFF; --ink:#15191E; --muted:#5D6670; --line:#DCDFDA;
+  --accent:#1F57D1; --accent-soft:#E3EAFB;
+  --head:#C8364A; --tail:#1E8C5C; --cross:#C27E12;
+  --warm:#E0622B; --cool:#2D78C4; --elev:#C9CDC5;
+  --display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101316; --surface:#191D22; --ink:#E8EBEE; --muted:#97A0AA; --line:#2A3037;
+  --accent:#7AA2FF; --accent-soft:#1D2A44;
+  --head:#F2697A; --tail:#48C58B; --cross:#F0B246;
+  --warm:#FF8A52; --cool:#63A9F0; --elev:#343A42; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#101316; --surface:#191D22; --ink:#E8EBEE; --muted:#97A0AA; --line:#2A3037;
+  --accent:#7AA2FF; --accent-soft:#1D2A44;
+  --head:#F2697A; --tail:#48C58B; --cross:#F0B246;
+  --warm:#FF8A52; --cool:#63A9F0; --elev:#343A42; color-scheme:dark;}
+
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:grid;gap:20px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:30px;font-weight:700;line-height:1}
+h2{font-size:20px;font-weight:600}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header + controls */
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+header .sub{color:var(--muted);margin-top:4px}
+.controls{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;grid-template-columns:minmax(0,1.6fr) repeat(3,minmax(0,1fr)) auto;gap:12px;align-items:end}
+.field{display:grid;gap:4px;min-width:0}
+.field input[type=number],.field input[type=datetime-local],.field select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.drop{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1.5px dashed var(--line);border-radius:6px;cursor:pointer;min-height:42px;background:var(--bg);min-width:0}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop svg{flex:none;color:var(--accent)}
+.drop span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.check{display:flex;align-items:center;gap:8px;padding:9px 0;cursor:pointer}
+.check input{accent-color:var(--accent);width:16px;height:16px}
+.go{padding:10px 18px;border:0;border-radius:6px;background:var(--accent);color:var(--surface);font-weight:600;cursor:pointer;white-space:nowrap}
+.go:disabled{opacity:.6;cursor:progress}
+.status{font-size:14px;color:var(--muted);min-height:1.5em}
+.status.err{color:var(--head);font-weight:500}
+
+/* summary */
+.summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tile{background:var(--surface);padding:12px 14px;display:grid;gap:2px;min-width:0}
+.tile .v{font-family:var(--display);font-size:26px;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.tile .v small{font-size:15px;color:var(--muted);font-weight:500}
+.tile .d{font-size:13px;color:var(--muted)}
+
+.split{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0;display:grid;gap:10px;align-content:start}
+.panel-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+
+/* map */
+#map{height:540px;border-radius:6px;border:1px solid var(--line);background:var(--bg)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:6px 10px;font-size:13px;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:12px;color:var(--muted)}
+.cbar{display:grid;gap:3px;width:220px;max-width:100%;padding-right:14px}
+.cbar-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--ink)}
+.cbar i{display:block;height:9px;border-radius:2px}
+.cbar-ticks{position:relative;height:14px}
+.cbar-ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap;font-size:11px}
+.cbar-ticks span:first-child{transform:none}
+.cbar-ticks span:last-child{transform:translateX(-100%)}
+.key{display:inline-flex;align-items:center;gap:5px}
+.key b{width:10px;height:10px;border-radius:50%;display:inline-block}
+.warrow{position:relative;width:34px;height:34px;display:grid;place-items:center}
+.warrow svg{transform:rotate(var(--rot));filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.warrow span{position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);font:600 10px/1 var(--mono);background:var(--surface);color:var(--ink);padding:2px 3px;border-radius:3px;border:1px solid var(--line);white-space:nowrap}
+.leaflet-container{font-family:var(--body)}
+.muted-tiles{filter:var(--tile-filter)}
+:root{--tile-filter:grayscale(.75) contrast(.92) brightness(1.04)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--tile-filter:invert(1) hue-rotate(180deg) grayscale(.7) brightness(.8) contrast(.9)}}
+:root[data-theme="dark"]{--tile-filter:invert(1) hue-rotate(180deg) grayscale(.7) brightness(.8) contrast(.9)}
+.pin{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 11px/1 var(--display);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+
+/* readout */
+.readout{display:grid;gap:10px}
+.readout .when{font-family:var(--display);font-size:22px;font-weight:600;line-height:1.1}
+.readout dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px}
+.readout dt{color:var(--muted);font-size:13px}
+.readout dd{margin:0;font-variant-numeric:tabular-nums;font-weight:500}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid currentColor}
+.chip.head{color:var(--head)} .chip.tail{color:var(--tail)} .chip.cross{color:var(--cross)}
+.notes{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.notes li{display:grid;grid-template-columns:10px 1fr;gap:10px;align-items:baseline;font-size:14px}
+.notes li::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted);transform:translateY(-1px)}
+.notes li.warn::before{background:var(--cross)} .notes li.bad::before{background:var(--head)} .notes li.good::before{background:var(--tail)} .notes li.info::before{background:var(--accent)}
+hr{border:0;border-top:1px solid var(--line);margin:4px 0;width:100%}
+
+/* charts */
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.chart-box{position:relative;height:260px}
+.chart-box.tall{height:300px}
+.panel p.hint{margin:0;font-size:13px;color:var(--muted)}
+
+/* table */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:820px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.mono{font-family:var(--mono);font-size:13px}
+tbody tr{cursor:pointer}
+tbody tr:hover,tbody tr.on{background:var(--accent-soft)}
+.wx{display:inline-flex;align-items:center;gap:6px}
+.wx svg{color:var(--muted)}
+.dir{display:inline-flex;align-items:center;gap:4px}
+.dir svg{transition:none}
+.bar{display:inline-block;height:6px;border-radius:3px;background:var(--cool);vertical-align:middle;margin-right:6px}
+footer{font-size:12px;color:var(--muted)}
+footer a{color:inherit}
+
+@media (max-width:1000px){
+  .controls{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .controls .file-field{grid-column:1/-1}
+  .summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .split,.charts{grid-template-columns:minmax(0,1fr)}
+  #map{height:400px}
+}
+@media (max-width:520px){
+  .controls{grid-template-columns:minmax(0,1fr)}
+  .summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .go{width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Ride Forecast</h1>
+      <div class="sub">Weather along your route, at the moment you ride through it.</div>
+    </div>
+    <div class="label" id="routeName">Demo route</div>
+  </header>
+
+  <form class="controls" id="form" novalidate>
+    <div class="field file-field">
+      <span class="label">Route (.gpx)</span>
+      <label class="drop" id="drop" for="file">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15c3 0 3-4 6-4s3-5 6-5"/><circle cx="4" cy="15" r="1.8"/><circle cx="16" cy="6" r="1.8"/></svg>
+        <span id="fileLabel">Drop a GPX file or click to choose</span>
+        <input type="file" id="file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
+      </label>
+    </div>
+    <div class="field">
+      <label class="label" for="speed">Average speed (km/h)</label>
+      <input type="number" id="speed" min="5" max="60" step="0.5" value="27">
+    </div>
+    <div class="field">
+      <label class="label" for="start">Start time</label>
+      <input type="datetime-local" id="start">
+    </div>
+    <label class="check" for="hills"><input type="checkbox" id="hills" checked> Slower on climbs, faster on descents</label>
+    <button class="go" id="go" type="submit">Get forecast</button>
+  </form>
+  <div class="status" id="status" role="status"></div>
+
+  <section class="summary" id="summary" aria-label="Ride summary"></section>
+
+  <section class="split">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Route map</h2>
+        <div class="seg" id="metric" role="group" aria-label="Colour route by">
+          <button type="button" data-m="head" aria-pressed="true">Head/tailwind</button>
+          <button type="button" data-m="temp" aria-pressed="false">Temperature</button>
+          <button type="button" data-m="pop" aria-pressed="false">Rain chance</button>
+          <button type="button" data-m="ws" aria-pressed="false">Wind speed</button>
+        </div>
+      </div>
+      <div id="map"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="panel">
+      <span class="label">At this point of the ride</span>
+      <div class="readout" id="readout"></div>
+      <hr>
+      <span class="label">Ride notes</span>
+      <ul class="notes" id="notes"></ul>
+    </div>
+  </section>
+
+  <section class="charts">
+    <div class="panel">
+      <div class="panel-head"><h2>Temperature</h2><span class="label">°C · elevation profile behind</span></div>
+      <div class="chart-box"><canvas id="cTemp"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Wind</h2><span class="label">km/h · bars = headwind (+) / tailwind (−) for you</span></div>
+      <div class="chart-box"><canvas id="cWind"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Wind direction</h2><span class="label">where the wind comes from vs. your heading</span></div>
+      <div class="chart-box"><canvas id="cDir"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Rain &amp; cloud</h2><span class="label">% chance · mm/h · cloud cover</span></div>
+      <div class="chart-box"><canvas id="cRain"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Wind exposure</h2><span class="label">minutes riding with wind from each side</span></div>
+      <div class="chart-box tall"><canvas id="cPolar"></canvas></div>
+      <p class="hint">Top is straight into your face, bottom is straight behind you.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Humidity &amp; feels-like gap</h2><span class="label">% relative humidity · °C wind-chill/heat</span></div>
+      <div class="chart-box tall"><canvas id="cHum"></canvas></div>
+      <p class="hint">Hover any chart or the route to move the marker on the map.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Checkpoints</h2><span class="label" id="spacingLabel"></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Km</th><th>Pass at</th><th>Sky</th><th>Temp</th><th>Feels</th><th>Wind</th><th>Gusts</th><th>From</th><th>For you</th><th>Rain</th><th>Cloud</th><th>Elev.</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Forecast: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0), best-match model, interpolated to your arrival time at each checkpoint. Map © OpenStreetMap contributors. Forecasts reach 16 days ahead; accuracy drops after 3–5 days.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const R = 6371000, rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
+const API = "https://api.open-meteo.com/v1/forecast";
+const HOURLY = ["temperature_2m","apparent_temperature","relative_humidity_2m","precipitation_probability","precipitation","weather_code","cloud_cover","wind_speed_10m","wind_direction_10m","wind_gusts_10m"];
+
+let state = { track: null, name: "", samples: null, startMs: 0, sun: null };
+let metric = "head", hoverKm = null, charts = [];
+const cache = new Map();
+
+/* ---------- geometry ---------- */
+function hav(a, b) {
+  const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+function bearing(a, b) {
+  const y = Math.sin(rad(b.lon - a.lon)) * Math.cos(rad(b.lat));
+  const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon));
+  return (deg(Math.atan2(y, x)) + 360) % 360;
+}
+const COMPASS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const compass = d => COMPASS[Math.round(((d % 360) + 360) % 360 / 22.5) % 16];
+
+/* ---------- GPX ---------- */
+function parseGPX(text) {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("That file isn't valid GPX. Export the route again as .gpx and retry.");
+  let nodes = [...doc.getElementsByTagName("trkpt")];
+  if (nodes.length < 2) nodes = [...doc.getElementsByTagName("rtept")];
+  if (nodes.length < 2) throw new Error("No track or route points found in this GPX.");
+  const nm = doc.getElementsByTagName("name")[0];
+  const pts = nodes.map(n => {
+    const e = n.getElementsByTagName("ele")[0];
+    return { lat: +n.getAttribute("lat"), lon: +n.getAttribute("lon"), ele: e ? parseFloat(e.textContent) : null };
+  }).filter(p => isFinite(p.lat) && isFinite(p.lon));
+  return { name: nm ? nm.textContent.trim() : "", pts };
+}
+
+function buildTrack(raw) {
+  const P = [raw[0]];
+  for (let i = 1; i < raw.length; i++) if (hav(P[P.length - 1], raw[i]) > 1) P.push(raw[i]);
+  const n = P.length, cum = new Float64Array(n);
+  for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + hav(P[i - 1], P[i]);
+  const hasEle = P.filter(p => p.ele != null && isFinite(p.ele)).length > n * 0.8;
+  const ele = new Float64Array(n);
+  if (hasEle) {
+    const e = P.map(p => p.ele);
+    let last = e.find(v => v != null && isFinite(v));
+    for (let i = 0; i < n; i++) { if (e[i] == null || !isFinite(e[i])) e[i] = last; else last = e[i]; }
+    // smooth over a ±60 m distance window to tame GPS/DEM noise
+    const pre = new Float64Array(n + 1);
+    for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + e[i];
+    let lo = 0, hi = 0;
+    for (let i = 0; i < n; i++) {
+      while (cum[i] - cum[lo] > 60) lo++;
+      if (hi < i) hi = i;
+      while (hi + 1 < n && cum[hi + 1] - cum[i] <= 60) hi++;
+      ele[i] = (pre[hi + 1] - pre[lo]) / (hi - lo + 1);
+    }
+  }
+  let ref = ele[0], gain = 0, loss = 0;
+  for (let i = 1; i < n; i++) {
+    const d = ele[i] - ref;
+    if (d >= 3) { gain += d; ref = ele[i]; } else if (d <= -3) { loss -= d; ref = ele[i]; }
+  }
+  return { pts: P, cum, ele, hasEle, total: cum[n - 1], gain, loss, time: null };
+}
+
+// seconds from start at each track point; hill-aware pacing keeps the same overall average
+function pace(tr, kmh, hills) {
+  const n = tr.pts.length, t = new Float64Array(n), v = kmh / 3.6;
+  for (let i = 1; i < n; i++) {
+    const d = tr.cum[i] - tr.cum[i - 1];
+    let f = 1;
+    if (hills && tr.hasEle && d > 0) {
+      const g = Math.max(-0.15, Math.min(0.15, (tr.ele[i] - tr.ele[i - 1]) / d));
+      f = g > 0 ? 1 / (1 + 9 * g) : Math.min(1.4, 1 - 4 * g);
+    }
+    t[i] = t[i - 1] + d / (v * f);
+  }
+  const k = (tr.total / v) / (t[n - 1] || 1);
+  for (let i = 0; i < n; i++) t[i] *= k;
+  tr.time = t;
+}
+
+function locate(tr, m) {
+  const { cum, pts } = tr;
+  m = Math.max(0, Math.min(tr.total, m));
+  let lo = 0, hi = cum.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= m) lo = mid; else hi = mid; }
+  const f = (m - cum[lo]) / ((cum[hi] - cum[lo]) || 1), a = pts[lo], b = pts[hi];
+  return {
+    lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f,
+    ele: tr.ele[lo] + (tr.ele[hi] - tr.ele[lo]) * f,
+    t: tr.time ? tr.time[lo] + (tr.time[hi] - tr.time[lo]) * f : 0, i: lo
+  };
+}
+
+function makeSamples(tr) {
+  const step = Math.min(10000, Math.max(1500, tr.total / 60));
+  const n = Math.max(1, Math.round(tr.total / step)), out = [];
+  for (let k = 0; k <= n; k++) {
+    const m = tr.total * k / n, p = locate(tr, m);
+    out.push({ m, km: m / 1000, lat: p.lat, lon: p.lon, ele: p.ele, t: p.t, i: p.i, brg: bearing(locate(tr, m - 250), locate(tr, m + 250)) });
+  }
+  return out;
+}
+
+/* ---------- weather ---------- */
+const isoDay = ms => new Date(ms).toISOString().slice(0, 10);
+async function fetchWeather(samples, startMs, endMs) {
+  const d0 = isoDay(startMs - 6 * 36e5), d1 = isoDay(endMs + 6 * 36e5), out = [];
+  for (let c = 0; c < samples.length; c += 50) {
+    const ch = samples.slice(c, c + 50);
+    const q = new URLSearchParams({
+      latitude: ch.map(s => s.lat.toFixed(3)).join(","), longitude: ch.map(s => s.lon.toFixed(3)).join(","),
+      hourly: HOURLY.join(","), daily: "sunrise,sunset", wind_speed_unit: "kmh",
+      timeformat: "unixtime", timezone: "GMT", start_date: d0, end_date: d1
+    });
+    const url = API + "?" + q;
+    let j = cache.get(url);
+    if (!j) {
+      const r = await fetch(url);
+      j = await r.json().catch(() => null);
+      if (!r.ok || !j) throw new Error(j && j.reason ? "Open-Meteo: " + j.reason : "The weather service returned an error (" + r.status + "). Try again in a minute.");
+      cache.set(url, j);
+    }
+    out.push(...(Array.isArray(j) ? j : [j]));
+  }
+  return out;
+}
+
+function wxAt(loc, ms) {
+  const H = loc.hourly, T = H.time, ts = ms / 1000;
+  let i = 0;
+  while (i < T.length - 2 && T[i + 1] <= ts) i++;
+  const f = Math.max(0, Math.min(1, (ts - T[i]) / (T[i + 1] - T[i])));
+  const L = k => { const a = H[k][i], b = H[k][i + 1]; return a == null ? b : b == null ? a : a + (b - a) * f; };
+  // interpolate wind direction as a vector so 350°→10° doesn't swing through south
+  const w = j => [H.wind_speed_10m[j] * Math.sin(rad(H.wind_direction_10m[j])), H.wind_speed_10m[j] * Math.cos(rad(H.wind_direction_10m[j]))];
+  const [ua, va] = w(i), [ub, vb] = w(i + 1);
+  const near = f < 0.5 ? i : i + 1;
+  return {
+    temp: L("temperature_2m"), feels: L("apparent_temperature"), rh: L("relative_humidity_2m"),
+    pop: L("precipitation_probability") ?? 0, precip: H.precipitation[i + 1] ?? 0,
+    code: H.weather_code[near], cloud: L("cloud_cover"),
+    ws: L("wind_speed_10m"), gust: L("wind_gusts_10m"),
+    wdir: (deg(Math.atan2(ua + (ub - ua) * f, va + (vb - va) * f)) + 360) % 360
+  };
+}
+
+function closest(arr, ms) {
+  let best = null;
+  for (const s of arr || []) if (best == null || Math.abs(s * 1000 - ms) < Math.abs(best - ms)) best = s * 1000;
+  return best;
+}
+
+/* ---------- WMO weather codes ---------- */
+const ICON = {
+  sun: '<circle cx="10" cy="10" r="3.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>',
+  part: '<path d="M7 4.2v1.3M3.2 8H2M4.3 5.3l.9.9M10.1 5.3l-.9.9"/><path d="M4.6 9.6A2.8 2.8 0 0 1 9.4 7"/><path d="M7 16h7.5a3 3 0 0 0 .3-6 4.2 4.2 0 0 0-8 1.2A2.4 2.4 0 0 0 7 16z"/>',
+  cloud: '<path d="M6 15.5h8.5a3.2 3.2 0 0 0 .3-6.4 4.6 4.6 0 0 0-8.8 1.4A2.5 2.5 0 0 0 6 15.5z"/>',
+  fog: '<path d="M3 8h14M5 11h12M3 14h11M6 17h8"/>',
+  rain: '<path d="M6 12.5h8.5a3.2 3.2 0 0 0 .3-6.4 4.6 4.6 0 0 0-8.8 1.4A2.5 2.5 0 0 0 6 12.5z"/><path d="M7 15l-1 2.5M10.5 15l-1 2.5M14 15l-1 2.5"/>',
+  snow: '<path d="M6 12.5h8.5a3.2 3.2 0 0 0 .3-6.4 4.6 4.6 0 0 0-8.8 1.4A2.5 2.5 0 0 0 6 12.5z"/><path d="M7 15.5h.01M10.5 16.5h.01M14 15.5h.01"/>',
+  storm: '<path d="M6 12h8.5a3.2 3.2 0 0 0 .3-6.4 4.6 4.6 0 0 0-8.8 1.4A2.5 2.5 0 0 0 6 12z"/><path d="M10.5 12.5L8.5 15.5h3l-2 3"/>'
+};
+function wmo(c) {
+  const m = {0:["Clear","sun"],1:["Mainly clear","sun"],2:["Partly cloudy","part"],3:["Overcast","cloud"],45:["Fog","fog"],48:["Rime fog","fog"],
+    51:["Light drizzle","rain"],53:["Drizzle","rain"],55:["Heavy drizzle","rain"],56:["Freezing drizzle","rain"],57:["Freezing drizzle","rain"],
+    61:["Light rain","rain"],63:["Rain","rain"],65:["Heavy rain","rain"],66:["Freezing rain","rain"],67:["Freezing rain","rain"],
+    71:["Light snow","snow"],73:["Snow","snow"],75:["Heavy snow","snow"],77:["Snow grains","snow"],80:["Light showers","rain"],81:["Showers","rain"],82:["Violent showers","rain"],
+    85:["Snow showers","snow"],86:["Snow showers","snow"],95:["Thunderstorm","storm"],96:["Storm, hail","storm"],99:["Storm, hail","storm"]};
+  return m[c] || ["—","cloud"];
+}
+const icon = (k, s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+const arrowSvg = (rot, color, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 20 20" style="transform:rotate(${rot}deg)" aria-hidden="true"><path d="M10 2l5 9h-3.5v7h-3v-7H5z" fill="${color}"/></svg>`;
+
+/* ---------- formatting ---------- */
+const fmtTime = ms => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const fmtDay = ms => new Date(ms).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+const fmtDur = s => { const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h + "h " + String(m).padStart(2, "0"); };
+const r0 = v => Math.round(v), r1 = v => Math.round(v * 10) / 10;
+function windLabel(s) {
+  const h = Math.abs(s.head) < 1.5 ? 0 : s.head;
+  if (s.cat === "head") return `<span class="chip head">Head ${r0(h)}</span>`;
+  if (s.cat === "tail") return `<span class="chip tail">Tail ${r0(-h)}</span>`;
+  return `<span class="chip cross">Cross ${s.side === "right" ? "R" : "L"} ${r0(Math.abs(s.cross))}</span>`;
+}
+const catColor = c => css(c === "head" ? "--head" : c === "tail" ? "--tail" : "--cross");
+
+/* ---------- colour ramps for the map ---------- */
+// stops are positions 0–1 along the bar; the value range is fitted to each ride (see rampRange)
+const RAMPS = {
+  temp: { stops: [[0,"#3b4cc0"],[.25,"#5fa8d3"],[.45,"#62c2a2"],[.62,"#e9cf5b"],[.8,"#f0954a"],[1,"#c8364a"]], unit: "°C", label: "Temperature" },
+  head: { stops: [[0,"#1e8c5c"],[.33,"#7fc79f"],[.5,"#b9bdb7"],[.67,"#f0a37c"],[1,"#c8364a"]], unit: "km/h", label: "Tailwind / headwind" },
+  pop:  { stops: [[0,"#c4d3e2"],[.3,"#7fa6d6"],[.6,"#3e6fc4"],[1,"#1b2f84"]], unit: "%", label: "Rain chance" },
+  ws:   { stops: [[0,"#d4d0e6"],[.33,"#9a8fd0"],[.67,"#6046b0"],[1,"#2e1a6e"]], unit: "km/h", label: "Wind speed" }
+};
+function rampRange(key) {
+  const v = state.samples.map(s => sampleValue(s, key));
+  const lo = Math.min(...v), hi = Math.max(...v);
+  if (key === "head") { const m = Math.max(5, Math.ceil(Math.max(Math.abs(lo), Math.abs(hi)))); return [-m, m]; }
+  if (key === "pop") return [0, Math.max(20, Math.ceil(hi / 10) * 10)];
+  if (key === "ws") return [0, Math.max(10, Math.ceil(hi / 5) * 5)];
+  // temperature: whole degrees, at least a 6° span so small changes don't look dramatic
+  let a = Math.floor(lo), b = Math.ceil(hi);
+  if (b - a < 6) { const mid = (a + b) / 2; a = Math.floor(mid - 3); b = a + 6; }
+  return [a, b];
+}
+function rampColor(key, v, [lo, hi]) {
+  const s = RAMPS[key].stops, t = Math.max(0, Math.min(1, (v - lo) / ((hi - lo) || 1)));
+  for (let i = 0; i < s.length - 1; i++) if (t <= s[i + 1][0]) {
+    const f = (t - s[i][0]) / (s[i + 1][0] - s[i][0]);
+    const a = s[i][1].match(/\w\w/g).map(h => parseInt(h, 16)), b = s[i + 1][1].match(/\w\w/g).map(h => parseInt(h, 16));
+    return "rgb(" + a.map((x, j) => Math.round(x + (b[j] - x) * f)).join(",") + ")";
+  }
+  return s[s.length - 1][1];
+}
+
+/* ---------- map ---------- */
+let map, base, routeLayer, arrowLayer, pinLayer, hoverMarker;
+function initMap() {
+  // wheel-zoom only after the map is clicked, so scrolling the page doesn't hijack it
+  map = L.map("map", { zoomControl: true, scrollWheelZoom: false });
+  map.on("click", () => map.scrollWheelZoom.enable());
+  map.on("mouseout", () => map.scrollWheelZoom.disable());
+  const osm = cls => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, className: cls, attribution: "© OpenStreetMap contributors" });
+  const layers = {
+    "Muted": osm("muted-tiles"),
+    "OpenStreetMap": osm(""),
+    "Cycling (CyclOSM)": L.tileLayer("https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png", { maxZoom: 19, subdomains: "abc", attribution: "© OpenStreetMap contributors | CyclOSM" }),
+    "Topographic": L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, attribution: "© OpenStreetMap contributors, SRTM | © OpenTopoMap" })
+  };
+  base = layers.Muted.addTo(map);
+  L.control.layers(layers, null, { position: "topright" }).addTo(map);
+  routeLayer = L.layerGroup().addTo(map);
+  arrowLayer = L.layerGroup().addTo(map);
+  pinLayer = L.layerGroup().addTo(map);
+  map.setView([39.55, -0.45], 10);
+}
+
+function sampleValue(s, key) { return key === "head" ? s.head : s[key]; }
+
+function drawMap(fit) {
+  const tr = state.track, S = state.samples;
+  routeLayer.clearLayers(); arrowLayer.clearLayers(); pinLayer.clearLayers();
+  const ll = tr.pts.map(p => [p.lat, p.lon]);
+  L.polyline(ll, { color: "#000", weight: 8, opacity: .25, interactive: false }).addTo(routeLayer);
+  const range = rampRange(metric);
+  for (let k = 0; k < S.length - 1; k++) {
+    const a = S[k], b = S[k + 1];
+    const seg = ll.slice(a.i, b.i + 2);
+    if (seg.length < 2) continue;
+    const v = (sampleValue(a, metric) + sampleValue(b, metric)) / 2;
+    L.polyline(seg, { color: rampColor(metric, v, range), weight: 5, opacity: 1, lineCap: "round" })
+      .on("mousemove", e => setHover(nearestKm(e.latlng)))
+      .addTo(routeLayer);
+  }
+  const every = Math.max(1, Math.ceil(S.length / 28));
+  S.forEach((s, k) => {
+    if (k % every) return;
+    const html = `<div class="warrow">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 26)}<span>${r0(s.ws)}</span></div>`;
+    L.marker([s.lat, s.lon], { icon: L.divIcon({ html, className: "", iconSize: [34, 34], iconAnchor: [17, 17] }), keyboard: false })
+      .bindTooltip(`km ${r1(s.km)} · ${fmtTime(s.eta)}<br>Wind ${r0(s.ws)} km/h from ${compass(s.wdir)}, gusts ${r0(s.gust)}`, { direction: "top", offset: [0, -14] })
+      .on("mouseover", () => setHover(s.km))
+      .addTo(arrowLayer);
+  });
+  const pin = (p, txt, col) => L.marker([p.lat, p.lon], { icon: L.divIcon({ html: `<div class="pin" style="background:${col}">${txt}</div>`, className: "", iconSize: [22, 22], iconAnchor: [11, 11] }), zIndexOffset: 1000 }).addTo(pinLayer);
+  const first = tr.pts[0], last = tr.pts[tr.pts.length - 1];
+  pin(first, "S", css("--tail"));
+  if (hav(first, last) > 150) pin(last, "F", css("--head"));
+  if (!hoverMarker) hoverMarker = L.circleMarker([0, 0], { radius: 8, color: "#fff", weight: 3, fillColor: css("--accent"), fillOpacity: 1, interactive: false });
+  hoverMarker.setStyle({ fillColor: css("--accent") });
+  if (fit) map.fitBounds(L.latLngBounds(ll), { padding: [24, 24] });
+  drawLegend(range);
+}
+
+function nearestKm(latlng) {
+  const tr = state.track; let best = 0, bd = Infinity;
+  const step = Math.max(1, Math.floor(tr.pts.length / 3000));
+  for (let i = 0; i < tr.pts.length; i += step) {
+    const p = tr.pts[i], d = (p.lat - latlng.lat) ** 2 + ((p.lon - latlng.lng) * Math.cos(rad(p.lat))) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return tr.cum[best] / 1000;
+}
+
+function drawLegend([lo, hi]) {
+  const r = RAMPS[metric];
+  const grad = r.stops.map(([t, c]) => `${c} ${Math.round(t * 100)}%`).join(",");
+  const lbl = v => metric === "head" ? (v < 0 ? `${-v} tail` : v > 0 ? `${v} head` : "0") : `${v}`;
+  const ticks = [0, .25, .5, .75, 1].map(f => {
+    const v = Math.round(lo + (hi - lo) * f);
+    return `<span style="left:${f * 100}%">${lbl(v)}</span>`;
+  }).join("");
+  $("#legend").innerHTML =
+    `<div class="cbar"><span class="cbar-title">${r.label} (${r.unit})</span><i style="background:linear-gradient(90deg,${grad})"></i><div class="cbar-ticks num">${ticks}</div></div>` +
+    `<span>Arrows point where the wind blows, number is km/h:</span>` +
+    `<span class="key"><b style="background:var(--head)"></b>headwind</span><span class="key"><b style="background:var(--cross)"></b>crosswind</span><span class="key"><b style="background:var(--tail)"></b>tailwind</span>`;
+}
+
+/* ---------- hover sync ---------- */
+let raf = 0;
+function setHover(km) {
+  hoverKm = km;
+  if (raf) return;
+  raf = requestAnimationFrame(() => {
+    raf = 0;
+    charts.forEach(c => c.config.type !== "polarArea" && c.draw());
+    renderReadout();
+    if (hoverKm == null) { hoverMarker && hoverMarker.remove(); return; }
+    const p = locate(state.track, hoverKm * 1000);
+    hoverMarker.setLatLng([p.lat, p.lon]).addTo(map);
+    const s = nearestSample(hoverKm);
+    document.querySelectorAll("#rows tr").forEach((tr, i) => tr.classList.toggle("on", state.samples[i] === s));
+  });
+}
+const nearestSample = km => state.samples.reduce((a, b) => Math.abs(b.km - km) < Math.abs(a.km - km) ? b : a);
+
+const crosshair = {
+  id: "crosshair",
+  afterDatasetsDraw(c) {
+    if (hoverKm == null || !c.scales.x || c.config.type === "polarArea") return;
+    const x = c.scales.x.getPixelForValue(hoverKm), { top, bottom, left, right } = c.chartArea;
+    if (x < left || x > right) return;
+    const g = c.ctx; g.save(); g.strokeStyle = css("--ink"); g.globalAlpha = .55; g.setLineDash([4, 3]); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.restore();
+  }
+};
+Chart.register(crosshair);
+
+/* ---------- rendering ---------- */
+function renderSummary() {
+  const S = state.samples, tr = state.track, dur = tr.time[tr.time.length - 1];
+  const end = state.startMs + dur * 1000;
+  const tMin = Math.min(...S.map(s => s.temp)), tMax = Math.max(...S.map(s => s.temp));
+  const avgHead = S.reduce((a, s) => a + s.head, 0) / S.length;
+  const maxPop = Math.max(...S.map(s => s.pop)), rain = S.reduce((a, s) => a + s.precip, 0);
+  const maxGust = Math.max(...S.map(s => s.gust));
+  const tiles = [
+    ["Distance", `${r1(tr.total / 1000)} <small>km</small>`, tr.hasEle ? `${r0(tr.gain)} m climbing` : "No elevation in file"],
+    ["Ride time", fmtDur(dur), `${fmtTime(state.startMs)} → ${fmtTime(end)}`],
+    ["Temperature", `${r0(tMin)}–${r0(tMax)} <small>°C</small>`, `Feels ${r0(Math.min(...S.map(s => s.feels)))}–${r0(Math.max(...S.map(s => s.feels)))} °C`],
+    ["Net wind for you", `${avgHead >= 0 ? "+" : "−"}${r1(Math.abs(avgHead))} <small>km/h</small>`, avgHead >= 0.5 ? "Average headwind" : avgHead <= -0.5 ? "Average tailwind" : "Roughly neutral"],
+    ["Strongest gust", `${r0(maxGust)} <small>km/h</small>`, `Max sustained ${r0(Math.max(...S.map(s => s.ws)))} km/h`],
+    ["Rain", `${r0(maxPop)} <small>% max</small>`, rain > 0.05 ? `~${r1(rain / S.length * (dur / 3600))} mm on the way` : "Dry forecast"]
+  ];
+  $("#summary").innerHTML = tiles.map(([l, v, d]) => `<div class="tile"><span class="label">${l}</span><span class="v">${v}</span><span class="d">${d}</span></div>`).join("");
+}
+
+function renderReadout() {
+  const km = hoverKm == null ? 0 : hoverKm, s = nearestSample(km), p = locate(state.track, km * 1000);
+  const [lbl, ic] = wmo(s.code);
+  $("#readout").innerHTML = `
+    <div><div class="when">km ${r1(km)} · ${fmtTime(state.startMs + p.t * 1000)}</div>
+    <div class="wx" style="margin-top:4px">${icon(ic, 20)} ${lbl}${state.track.hasEle ? ` · ${r0(p.ele)} m` : ""}</div></div>
+    <dl>
+      <dt>Temperature</dt><dd>${r1(s.temp)} °C, feels ${r1(s.feels)} °C</dd>
+      <dt>Wind</dt><dd><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)} ${r0(s.ws)} km/h from ${compass(s.wdir)}</span>, gusts ${r0(s.gust)}</dd>
+      <dt>For you</dt><dd>${windLabel(s)} <span style="color:var(--muted);font-size:13px">heading ${compass(s.brg)}</span></dd>
+      <dt>Rain</dt><dd>${r0(s.pop)}% chance${s.precip > 0.05 ? `, ${r1(s.precip)} mm/h` : ""}</dd>
+      <dt>Sky</dt><dd>${r0(s.cloud)}% cloud · ${r0(s.rh)}% humidity</dd>
+    </dl>`;
+}
+
+function renderNotes() {
+  const S = state.samples, tr = state.track, notes = [];
+  const dur = tr.time[tr.time.length - 1], end = state.startMs + dur * 1000;
+  const minFeels = Math.min(...S.map(s => s.feels)), maxT = Math.max(...S.map(s => s.temp));
+  // time-weighted wind shares
+  const share = { head: 0, tail: 0, cross: 0 };
+  S.forEach((s, k) => { share[s.cat] += (S[Math.min(k + 1, S.length - 1)].t - S[Math.max(k - 1, 0)].t) / 2; });
+  const pct = c => r0(share[c] / dur * 100);
+  // worst headwind stretch: best 15%-of-route window by mean headwind
+  const w = Math.max(1, Math.round(S.length * 0.15));
+  let bi = 0, bv = -Infinity;
+  for (let i = 0; i + w <= S.length; i++) { const v = S.slice(i, i + w).reduce((a, s) => a + s.head, 0) / w; if (v > bv) { bv = v; bi = i; } }
+  if (bv > 6) notes.push(["bad", `Toughest headwind from km ${r0(S[bi].km)} to ${r0(S[bi + w - 1].km)} (around ${fmtTime(S[bi].eta)}), averaging ${r0(bv)} km/h in your face.`]);
+  notes.push([pct("tail") > pct("head") ? "good" : "info", `Wind mix: ${pct("head")}% headwind, ${pct("cross")}% crosswind, ${pct("tail")}% tailwind.`]);
+  const lastHalf = S.filter(s => s.km > tr.total / 2000), lh = lastHalf.reduce((a, s) => a + s.head, 0) / (lastHalf.length || 1);
+  if (lh < -4) notes.push(["good", `Tailwind on the way home: about ${r0(-lh)} km/h behind you in the second half.`]);
+  else if (lh > 6) notes.push(["warn", `Second half is into the wind (≈${r0(lh)} km/h). Save something for it.`]);
+  const gusty = S.filter(s => s.gust >= 45);
+  if (gusty.length) notes.push(["bad", `Gusts up to ${r0(Math.max(...gusty.map(s => s.gust)))} km/h from km ${r0(gusty[0].km)}. Careful on exposed descents and with deep-section wheels.`]);
+  const wet = S.find(s => s.pop >= 50 || s.precip >= 0.3);
+  if (wet) notes.push(["bad", `Rain likely from around km ${r0(wet.km)} (${fmtTime(wet.eta)}, ${r0(wet.pop)}% chance). Pack a rain jacket.`]);
+  else if (Math.max(...S.map(s => s.pop)) >= 25) notes.push(["warn", `Some chance of showers (up to ${r0(Math.max(...S.map(s => s.pop)))}%). A packable jacket is worth it.`]);
+  else notes.push(["good", "Dry ride expected."]);
+  if (maxT >= 30) notes.push(["warn", `Hot: up to ${r0(maxT)} °C. Carry extra bottles and plan a refill.`]);
+  // kit suggestion from the coldest feels-like temperature
+  let kit;
+  if (minFeels >= 21) kit = "Short sleeves and shorts.";
+  else if (minFeels >= 16) kit = "Short sleeves; a gilet for the start or descents.";
+  else if (minFeels >= 11) kit = "Arm warmers, gilet, maybe knee warmers.";
+  else if (minFeels >= 6) kit = "Long sleeves or jacket, knee/leg warmers, light gloves.";
+  else if (minFeels >= 1) kit = "Winter jacket, tights, full gloves, overshoes.";
+  else kit = "Full winter kit and watch for ice.";
+  notes.push(["info", `Kit (coldest feels ${r0(minFeels)} °C): ${kit}`]);
+  if (state.sun && state.sun.set && end > state.sun.set) notes.push(["bad", `You finish at ${fmtTime(end)}, after sunset (${fmtTime(state.sun.set)}). Bring lights.`]);
+  else if (state.sun && state.sun.rise && state.startMs < state.sun.rise) notes.push(["warn", `You start before sunrise (${fmtTime(state.sun.rise)}). Bring lights.`]);
+  else if (state.sun && state.sun.set) notes.push(["info", `Sunset ${fmtTime(state.sun.set)}; you finish ${r0((state.sun.set - end) / 60000)} min before.`]);
+  const ahead = (state.startMs - Date.now()) / 864e5;
+  if (ahead > 5) notes.push(["warn", `This ride is ${r0(ahead)} days out. Treat it as a trend and check again closer to the day.`]);
+  $("#notes").innerHTML = notes.map(([c, t]) => `<li class="${c}">${t}</li>`).join("");
+}
+
+function renderTable() {
+  const S = state.samples, multiDay = fmtDay(S[0].eta) !== fmtDay(S[S.length - 1].eta);
+  $("#spacingLabel").textContent = `every ${r1(S[1] ? S[1].km - S[0].km : 0)} km · ${fmtDay(state.startMs)}`;
+  $("#rows").innerHTML = S.map(s => {
+    const [lbl, ic] = wmo(s.code);
+    return `<tr><td class="mono">${r1(s.km).toFixed(1)}</td><td>${multiDay ? fmtDay(s.eta) + " " : ""}${fmtTime(s.eta)}</td>
+      <td><span class="wx">${icon(ic)}${lbl}</span></td><td>${r1(s.temp)}°</td><td>${r0(s.feels)}°</td>
+      <td>${r0(s.ws)} km/h</td><td>${r0(s.gust)}</td>
+      <td><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)}${compass(s.wdir)}</span></td>
+      <td>${windLabel(s)}</td>
+      <td><span class="bar" style="width:${Math.max(2, s.pop * 0.4)}px"></span>${r0(s.pop)}%${s.precip > 0.05 ? ` · ${r1(s.precip)} mm` : ""}</td>
+      <td>${r0(s.cloud)}%</td><td>${state.track.hasEle ? r0(s.ele) + " m" : "—"}</td></tr>`;
+  }).join("");
+  [...$("#rows").children].forEach((row, i) => row.addEventListener("click", () => {
+    setHover(S[i].km); map.panTo([S[i].lat, S[i].lon]);
+  }));
+}
+
+function alpha(c, a) {
+  if (c.startsWith("#")) { const n = c.slice(1).match(/\w\w/g).map(h => parseInt(h, 16)); return `rgba(${n.join(",")},${a})`; }
+  return c;
+}
+
+function renderCharts() {
+  charts.forEach(c => c.destroy()); charts = [];
+  const S = state.samples, tr = state.track, maxKm = tr.total / 1000;
+  const ink = css("--ink"), muted = css("--muted"), line = css("--line");
+  Chart.defaults.font.family = css("--body"); Chart.defaults.font.size = 12; Chart.defaults.color = muted;
+  const xy = k => S.map(s => ({ x: s.km, y: s[k] }));
+  const step = Math.max(1, Math.floor(tr.pts.length / 400)), prof = [];
+  for (let i = 0; i < tr.pts.length; i += step) prof.push({ x: tr.cum[i] / 1000, y: tr.ele[i] });
+  const hover = (e, _, c) => { const km = c.scales.x.getValueForPixel(e.x); if (km >= 0 && km <= maxKm) setHover(km); };
+  const xAxis = { type: "linear", min: 0, max: maxKm, offset: false, grid: { color: line }, border: { color: line }, ticks: { maxTicksLimit: 8, callback: v => r0(v) + " km" } };
+  const yAx = extra => Object.assign({ grid: { color: line }, border: { display: false } }, extra);
+  const opts = (scales, legend = true) => ({
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "nearest", axis: "x", intersect: false }, onHover: hover,
+    plugins: { legend: { display: legend, position: "bottom", labels: { usePointStyle: true, boxWidth: 8, boxHeight: 8, color: ink } }, tooltip: { enabled: false } },
+    scales: Object.assign({ x: xAxis }, scales)
+  });
+  const lineDs = (label, data, color, extra) => Object.assign({ type: "line", label, data, borderColor: color, backgroundColor: color, borderWidth: 2.25, pointRadius: 0, tension: .35, pointStyle: "line" }, extra);
+  const mk = (id, cfg) => { const c = new Chart($(id), cfg); c.canvas.addEventListener("mouseleave", () => setHover(null)); charts.push(c); };
+
+  mk("#cTemp", { type: "line", data: { datasets: [
+    lineDs("Temperature", xy("temp"), css("--warm")),
+    lineDs("Feels like", xy("feels"), css("--cool"), { borderDash: [5, 4], borderWidth: 2 }),
+    ...(tr.hasEle ? [lineDs("Elevation", prof, css("--elev"), { yAxisID: "y2", fill: "origin", backgroundColor: alpha(css("--elev"), .55), borderWidth: 0, tension: .2, order: 10, pointStyle: "rect" })] : [])
+  ] }, options: opts({ y: yAx({ ticks: { callback: v => v + "°" } }), y2: { display: tr.hasEle, position: "right", grid: { display: false }, border: { display: false }, beginAtZero: true, ticks: { callback: v => v + " m" } } }) });
+
+  mk("#cWind", { type: "bar", data: { datasets: [
+    { type: "bar", label: "Head(+)/tail(−) component", data: S.map(s => ({ x: s.km, y: s.head })), backgroundColor: S.map(s => alpha(s.head >= 0 ? css("--head") : css("--tail"), .55)), borderWidth: 0, barPercentage: 1, categoryPercentage: .9, order: 5, pointStyle: "rect" },
+    lineDs("Wind speed", xy("ws"), ink),
+    lineDs("Gusts", xy("gust"), muted, { borderDash: [4, 4], borderWidth: 1.75 })
+  ] }, options: opts({ y: yAx({ ticks: { callback: v => v } }) }) });
+
+  const card = { 0: "N", 90: "E", 180: "S", 270: "W", 360: "N" };
+  mk("#cDir", { type: "scatter", data: { datasets: [
+    { label: "Wind from", data: xy("wdir"), pointRadius: 4.5, pointHoverRadius: 6, backgroundColor: S.map(s => catColor(s.cat)), borderWidth: 0, pointStyle: "circle" },
+    { label: "Your heading", data: xy("brg"), pointRadius: 2.2, backgroundColor: muted, borderWidth: 0, pointStyle: "circle" }
+  ] }, options: opts({ y: yAx({ min: 0, max: 360, ticks: { stepSize: 45, callback: v => card[v] || compass(v) } }) }) });
+
+  mk("#cRain", { type: "bar", data: { datasets: [
+    { type: "bar", label: "Rain chance %", data: xy("pop"), backgroundColor: alpha(css("--cool"), .7), borderWidth: 0, barPercentage: 1, categoryPercentage: .85, pointStyle: "rect" },
+    lineDs("Cloud cover %", xy("cloud"), muted, { fill: "origin", backgroundColor: alpha(css("--elev"), .35), borderWidth: 1.5, order: 10 }),
+    lineDs("Rain mm/h", xy("precip"), css("--accent"), { yAxisID: "y2", stepped: "middle", tension: 0 })
+  ] }, options: opts({ y: yAx({ min: 0, max: 100, ticks: { callback: v => v + "%" } }), y2: { position: "right", min: 0, suggestedMax: 2, grid: { display: false }, border: { display: false }, ticks: { callback: v => v + " mm" } } }) });
+
+  // exposure by relative direction, time-weighted
+  const sectors = new Array(8).fill(0), dur = tr.time[tr.time.length - 1];
+  S.forEach((s, k) => {
+    const dt = (S[Math.min(k + 1, S.length - 1)].t - S[Math.max(k - 1, 0)].t) / 2;
+    sectors[Math.round(((s.rel + 360) % 360) / 45) % 8] += dt / 60;
+  });
+  const secCol = ["--head", "--head", "--cross", "--tail", "--tail", "--tail", "--cross", "--head"].map(css);
+  const polar = new Chart($("#cPolar"), { type: "polarArea", data: {
+    labels: ["Head", "Front-right", "Right", "Rear-right", "Tail", "Rear-left", "Left", "Front-left"],
+    datasets: [{ data: sectors.map(v => Math.round(v)), backgroundColor: secCol.map((c, i) => alpha(c, [0, 4].includes(i) ? .85 : .5)), borderColor: css("--surface"), borderWidth: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.raw} min` } } },
+      scales: { r: { startAngle: -22.5, grid: { color: line }, angleLines: { color: line }, ticks: { display: false }, pointLabels: { display: true, centerPointLabels: true, color: ink, font: { size: 12 } } } } } });
+  charts.push(polar);
+
+  mk("#cHum", { type: "line", data: { datasets: [
+    lineDs("Humidity %", xy("rh"), css("--cool")),
+    { type: "bar", label: "Feels − actual °C", data: S.map(s => ({ x: s.km, y: s.feels - s.temp })), yAxisID: "y2", backgroundColor: S.map(s => alpha(s.feels < s.temp ? css("--cool") : css("--warm"), .45)), borderWidth: 0, barPercentage: 1, categoryPercentage: .9, pointStyle: "rect" }
+  ] }, options: opts({ y: yAx({ min: 0, max: 100, ticks: { callback: v => v + "%" } }), y2: { position: "right", grid: { display: false }, border: { display: false }, ticks: { callback: v => (v > 0 ? "+" : "") + r1(v) + "°" } } }) });
+}
+
+function renderAll(fit) {
+  renderSummary(); renderNotes(); drawMap(fit); renderCharts(); renderTable(); renderReadout();
+}
+
+/* ---------- run ---------- */
+function setStatus(msg, err) { const el = $("#status"); el.textContent = msg; el.classList.toggle("err", !!err); }
+
+async function run(fit) {
+  if (!state.track) { setStatus("Choose a GPX file first.", true); return; }
+  const speed = parseFloat($("#speed").value);
+  if (!(speed >= 5 && speed <= 60)) { setStatus("Enter an average speed between 5 and 60 km/h.", true); return; }
+  const startMs = new Date($("#start").value).getTime();
+  if (!isFinite(startMs)) { setStatus("Pick a start date and time.", true); return; }
+  pace(state.track, speed, $("#hills").checked);
+  const endMs = startMs + state.track.time[state.track.time.length - 1] * 1000;
+  if (startMs > Date.now() + 15.5 * 864e5) { setStatus("Forecasts only reach 16 days ahead. Pick a start time within that window.", true); return; }
+  if (endMs < Date.now() - 90 * 864e5) { setStatus("That date is more than 3 months ago. Pick a recent or upcoming start time.", true); return; }
+  const btn = $("#go"); btn.disabled = true; btn.textContent = "Fetching…";
+  setStatus("Getting the forecast for each checkpoint…");
+  try {
+    const S = makeSamples(state.track);
+    const locs = await fetchWeather(S, startMs, endMs);
+    S.forEach((s, k) => {
+      s.eta = startMs + s.t * 1000;
+      Object.assign(s, wxAt(locs[k], s.eta));
+      s.rel = ((s.wdir - s.brg + 540) % 360) - 180; // + means wind from your right
+      s.head = s.ws * Math.cos(rad(s.rel));
+      s.cross = s.ws * Math.sin(rad(s.rel));
+      s.cat = Math.abs(s.rel) <= 45 ? "head" : Math.abs(s.rel) >= 135 ? "tail" : "cross";
+      s.side = s.rel > 0 ? "right" : "left";
+    });
+    state.samples = S; state.startMs = startMs;
+    state.sun = { rise: closest(locs[0].daily && locs[0].daily.sunrise, startMs), set: closest(locs[locs.length - 1].daily && locs[locs.length - 1].daily.sunset, endMs) };
+    hoverKm = null;
+    renderAll(fit);
+    setStatus(`Forecast for ${S.length} checkpoints, ${fmtDay(startMs)} ${fmtTime(startMs)} → ${fmtTime(endMs)}.`);
+    try { localStorage.setItem("rf-speed", $("#speed").value); localStorage.setItem("rf-hills", $("#hills").checked ? "1" : "0"); } catch (e) {}
+  } catch (e) {
+    setStatus(e.message || "Couldn't reach the weather service. Check your connection and try again.", true);
+  } finally { btn.disabled = false; btn.textContent = "Get forecast"; }
+}
+
+function loadGPX(text, filename) {
+  try {
+    const g = parseGPX(text);
+    state.track = buildTrack(g.pts);
+    state.name = g.name || filename.replace(/\.gpx$/i, "");
+    $("#routeName").textContent = state.name;
+    $("#fileLabel").textContent = filename;
+    run(true);
+  } catch (e) { setStatus(e.message, true); }
+}
+
+/* ---------- demo route: a loop north-west of Valencia ---------- */
+function demoGPX() {
+  const W = [[39.4699,-0.3763,15],[39.4977,-0.4239,40],[39.5025,-0.4406,60],[39.5913,-0.4617,120],[39.6578,-0.4250,200],[39.6845,-0.4290,320],
+    [39.6920,-0.4740,450],[39.6990,-0.5290,330],[39.6253,-0.5966,170],[39.5880,-0.5530,110],[39.5660,-0.5280,90],[39.5025,-0.4406,60],[39.4977,-0.4239,40],[39.4699,-0.3763,15]];
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  let out = "";
+  for (let k = 0; k < W.length - 1; k++) {
+    const [a0, o0, e0] = W[k], [a1, o1, e1] = W[k + 1];
+    const d = hav({ lat: a0, lon: o0 }, { lat: a1, lon: o1 }), n = Math.max(2, Math.round(d / 100));
+    const amp = (rnd() - .5) * 0.006, freq = 1 + Math.floor(rnd() * 3);
+    for (let i = 0; i < n; i++) {
+      const f = i / n, wig = Math.sin(Math.PI * f * freq) * amp;
+      const lat = a0 + (a1 - a0) * f + wig * (o1 - o0 > 0 ? 1 : -1) * .6, lon = o0 + (o1 - o0) * f + wig;
+      const ele = e0 + (e1 - e0) * (0.5 - 0.5 * Math.cos(Math.PI * f)) + Math.sin(f * 9 + k) * 6;
+      out += `<trkpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}"><ele>${ele.toFixed(1)}</ele></trkpt>`;
+    }
+  }
+  out += `<trkpt lat="39.4699" lon="-0.3763"><ele>15</ele></trkpt>`;
+  return `<?xml version="1.0"?><gpx version="1.1" creator="Ride Forecast" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>Demo · Valencia – Serra – Llíria loop</name><trkseg>${out}</trkseg></trk></gpx>`;
+}
+
+function nextSaturday8() {
+  const d = new Date(); d.setSeconds(0, 0);
+  const add = (6 - d.getDay() + 7) % 7 || (d.getHours() < 8 ? 0 : 7);
+  d.setDate(d.getDate() + add); d.setHours(8, 0);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/* ---------- wiring ---------- */
+$("#start").value = nextSaturday8();
+try {
+  const sp = localStorage.getItem("rf-speed"); if (sp) $("#speed").value = sp;
+  const h = localStorage.getItem("rf-hills"); if (h) $("#hills").checked = h === "1";
+} catch (e) {}
+
+$("#form").addEventListener("submit", e => { e.preventDefault(); run(false); });
+$("#file").addEventListener("change", e => {
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => loadGPX(t, f.name));
+});
+const drop = $("#drop");
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) f.text().then(t => loadGPX(t, f.name)); });
+// also accept a drop anywhere on the page
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => { if (e.target.closest("#drop")) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) f.text().then(t => loadGPX(t, f.name)); });
+
+$("#metric").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  metric = b.dataset.m;
+  $("#metric").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  if (state.samples) drawMap(false);
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (state.samples) renderAll(false); });
+
+initMap();
+loadGPX(demoGPX(), "demo-valencia-loop.gpx");
+$("#fileLabel").textContent = "Drop a GPX file or click to choose";
+</script>
+</body>
+</html>
