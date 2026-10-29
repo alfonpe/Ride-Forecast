@@ -137,6 +137,9 @@ button,input,select{font:inherit;color:inherit}
 .notes{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .notes li{display:grid;grid-template-columns:10px 1fr;gap:10px;align-items:baseline;font-size:13.5px}
 .notes li::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted);transform:translateY(-1px)}
+.hz{all:unset;cursor:pointer;display:block}
+.hz:hover b{text-decoration:underline}
+.hz:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 .notes li.warn::before{background:var(--cross)} .notes li.bad::before{background:var(--head)} .notes li.good::before{background:var(--tail)} .notes li.info::before{background:var(--accent)}
 hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
 
@@ -158,7 +161,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
 
 /* table */
 .table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:900px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:1000px}
 th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:7px 8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
 td.mono{font-family:var(--mono);font-size:13px}
@@ -279,6 +282,9 @@ footer a{color:inherit}
       <span class="label">At this point of the ride</span>
       <div class="readout" id="readout"></div>
       <hr>
+      <span class="label">Hazards</span>
+      <ul class="notes" id="hazards"></ul>
+      <hr>
       <span class="label">Ride notes</span>
       <ul class="notes" id="notes"></ul>
     </div>
@@ -323,19 +329,27 @@ footer a{color:inherit}
       <div class="chart-box tall"><canvas id="cPolar"></canvas></div>
       <p class="hint">Top is straight into your face, bottom is straight behind you.</p>
     </div>
+    <div class="panel">
+      <div class="panel-head"><div><h2>UV index</h2><div class="sub">sunburn risk when you pass · 3+ suncream, 6+ high, 8+ very high</div></div></div>
+      <div class="chart-box"><canvas id="cUV"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><h2>Air quality</h2><div class="sub" id="airSub">European AQI</div></div></div>
+      <div class="chart-box"><canvas id="cAir"></canvas></div>
+    </div>
   </section>
 
   <section class="panel">
     <div class="panel-head"><div><h2>Checkpoints</h2><div class="sub" id="spacingLabel"></div></div></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Km</th><th>Pass at</th><th>Sky</th><th>Temp</th><th>On bike</th><th>Wind (10 m)</th><th>Gusts</th><th>From</th><th>For you</th><th>Rain</th><th>Cloud</th><th>Humidity</th><th>Elev.</th></tr></thead>
+        <thead><tr><th>Km</th><th>Pass at</th><th>Sky</th><th>Temp</th><th>On bike</th><th>Wind (10 m)</th><th>Gusts</th><th>From</th><th>For you</th><th>Rain</th><th>Cloud</th><th>Humidity</th><th>UV</th><th>AQI</th><th>Elev.</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
   </section>
 
-  <footer>Forecast: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0), best-match model, interpolated to your arrival time at each checkpoint; uncertainty from the ECMWF IFS ensemble; missing elevation from Copernicus DEM via Open-Meteo. Map © OpenStreetMap contributors. Forecasts reach 16 days ahead (ensemble 15); accuracy drops after 3–5 days. Wind effect on speed and on-bike wind chill are rule-of-thumb estimates.</footer>
+  <footer>Forecast: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0), best-match model; air quality and pollen from CAMS via Open-Meteo; interpolated to your arrival time at each checkpoint; uncertainty from the ECMWF IFS ensemble; missing elevation from Copernicus DEM via Open-Meteo. Map © OpenStreetMap contributors. Forecasts reach 16 days ahead (ensemble 15); accuracy drops after 3–5 days. Wind effect on speed and on-bike wind chill are rule-of-thumb estimates.</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -349,7 +363,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const API = "https://api.open-meteo.com/v1/forecast";
 const ELEV_API = "https://api.open-meteo.com/v1/elevation";
 const ENS_API = "https://ensemble-api.open-meteo.com/v1/ensemble";
-const HOURLY = ["temperature_2m","apparent_temperature","relative_humidity_2m","precipitation_probability","precipitation","weather_code","cloud_cover","wind_speed_10m","wind_direction_10m","wind_gusts_10m"];
+const AIR_API = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const HOURLY = ["temperature_2m","apparent_temperature","relative_humidity_2m","precipitation_probability","precipitation","weather_code","cloud_cover","wind_speed_10m","wind_direction_10m","wind_gusts_10m","visibility","cape","uv_index"];
 const DAY = 864e5, HOUR = 36e5;
 
 let state = { routes: [], track: null, name: "", samples: null, startMs: 0, sun: null, locs: null, ens: null, best: null, opts: null };
@@ -517,7 +532,8 @@ function makeSamples(tr) {
   const n = Math.max(1, Math.round(tr.total / step)), out = [];
   for (let k = 0; k <= n; k++) {
     const m = tr.total * k / n, p = locate(tr, m, null);
-    out.push({ m, km: m / 1000, lat: p.lat, lon: p.lon, ele: p.ele, i: p.i, brg: bearing(locate(tr, m - 250, null), locate(tr, m + 250, null)) });
+    out.push({ m, km: m / 1000, lat: p.lat, lon: p.lon, ele: p.ele, i: p.i, brg: bearing(locate(tr, m - 250, null), locate(tr, m + 250, null)),
+      grade: tr.hasEle ? (locate(tr, m + 300, null).ele - locate(tr, m - 300, null).ele) / ((Math.min(tr.total, m + 300) - Math.max(0, m - 300)) || 1) : 0 });
   }
   return out;
 }
@@ -617,7 +633,7 @@ function windUV(loc, ms) {
   return a ? [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f] : [0, 0];
 }
 function wxAt(loc, ms) {
-  const H = loc.hourly, [i, f] = hourIdx(H.time, ms / 1000), L = (k, d = 0) => lerp(H[k], i, f) ?? d;
+  const H = loc.hourly, [i, f] = hourIdx(H.time, ms / 1000), L = (k, d = 0) => (H[k] ? lerp(H[k], i, f) : null) ?? d;
   const [u, v] = windUV(loc, ms), near = f < 0.5 ? i : i + 1;
   const temp = L("temperature_2m");
   return {
@@ -625,8 +641,15 @@ function wxAt(loc, ms) {
     pop: L("precipitation_probability"), precip: H.precipitation[i + 1] ?? H.precipitation[i] ?? 0,
     code: H.weather_code[near] ?? H.weather_code[i], cloud: L("cloud_cover"),
     ws: L("wind_speed_10m"), gust: L("wind_gusts_10m", L("wind_speed_10m")),
-    wdir: (deg(Math.atan2(u, v)) + 360) % 360
+    wdir: (deg(Math.atan2(u, v)) + 360) % 360,
+    vis: L("visibility", 1e5), cape: L("cape"), uv: Math.max(0, L("uv_index")), wet12: rainBefore(H, i, 12)
   };
+}
+// rain in the hours before (wet roads linger after the rain stops)
+function rainBefore(H, i, n) {
+  let sum = 0;
+  for (let j = Math.max(0, i - n + 1); j <= i + 1 && j < H.time.length; j++) sum += H.precipitation[j] || 0;
+  return sum;
 }
 // last instant every location still has data for
 function dataWindow(locs) {
@@ -662,10 +685,18 @@ function riderFeels(T, air, apparent) {
   return T + (chill(10) - 10) * (24 - T) / 14;
 }
 
+/* ---------- secondary forecasts fetched for ~10 checkpoints and applied to the nearest ---------- */
+const spreadIdx = (n, max) => [...new Set(Array.from({ length: Math.min(max, n) }, (_, k) => Math.round(k * (n - 1) / Math.max(1, Math.min(max, n) - 1))))];
+function nearestOf(S, idx, s) {
+  let best = 0;
+  idx.forEach((k, q) => { if (Math.abs(S[k].m - s.m) < Math.abs(S[idx[best]].m - s.m)) best = q; });
+  return best;
+}
+
 /* ---------- ensemble uncertainty (non-blocking) ---------- */
 const ENS_VARS = ["temperature_2m", "wind_speed_10m", "precipitation"];
 async function fetchEnsemble(S, startMs, endMs) {
-  const idx = [...new Set(Array.from({ length: Math.min(10, S.length) }, (_, k) => Math.round(k * (S.length - 1) / Math.max(1, Math.min(10, S.length) - 1))))];
+  const idx = spreadIdx(S.length, 10);
   const maxDay = isoDay(Date.now() + 14 * DAY);
   const d0 = isoDay(startMs - 2 * HOUR), d1 = isoDay(endMs + 2 * HOUR);
   if (d0 > maxDay || endMs < Date.now() - 2 * DAY) return null;
@@ -679,9 +710,7 @@ async function fetchEnsemble(S, startMs, endMs) {
   if (!j) { const r = await fetch(url); j = await r.json().catch(() => null); if (!r.ok || !j) return null; cache.set(url, j); }
   const locs = Array.isArray(j) ? j : [j];
   return S.map(s => {
-    let best = 0;
-    idx.forEach((k, q) => { if (Math.abs(S[k].m - s.m) < Math.abs(S[idx[best]].m - s.m)) best = q; });
-    const H = locs[best].hourly, ts = s.eta / 1000;
+    const H = locs[nearestOf(S, idx, s)].hourly, ts = s.eta / 1000;
     if (ts < H.time[0] || ts > H.time[H.time.length - 1]) return null;
     const [i, f] = hourIdx(H.time, ts), out = {};
     for (const v of ENS_VARS) {
@@ -698,6 +727,66 @@ async function fetchEnsemble(S, startMs, endMs) {
     };
   });
 }
+
+/* ---------- air quality and pollen (non-blocking; CAMS covers ~5 days, pollen Europe only) ---------- */
+// grains/m³ at which each pollen counts as "high"; a fifth of that is "moderate"
+const POLLEN = { alder_pollen: ["alder", 100], birch_pollen: ["birch", 100], grass_pollen: ["grass", 50], mugwort_pollen: ["mugwort", 50], olive_pollen: ["olive", 200], ragweed_pollen: ["ragweed", 50] };
+async function fetchAir(S, startMs, endMs) {
+  const idx = spreadIdx(S.length, 10);
+  const q = new URLSearchParams({
+    latitude: idx.map(k => S[k].lat.toFixed(2)).join(","), longitude: idx.map(k => S[k].lon.toFixed(2)).join(","),
+    hourly: ["european_aqi", "pm2_5", "ozone", ...Object.keys(POLLEN)].join(","), timeformat: "unixtime", timezone: "GMT",
+    start_date: isoDay(startMs - 2 * HOUR), end_date: isoDay(endMs + 2 * HOUR)
+  });
+  const url = AIR_API + "?" + q;
+  let j = cache.get(url);
+  if (!j) { const r = await fetch(url); j = await r.json().catch(() => null); if (!r.ok || !j) return null; cache.set(url, j); }
+  const locs = Array.isArray(j) ? j : [j];
+  return S.map(s => {
+    const H = locs[nearestOf(S, idx, s)].hourly, ts = s.eta / 1000;
+    if (!H || ts < H.time[0] || ts > H.time[H.time.length - 1]) return null;
+    const [i, f] = hourIdx(H.time, ts), v = k => H[k] ? lerp(H[k], i, f) : null;
+    const aqi = v("european_aqi");
+    if (aqi == null) return null;
+    return { aqi, pm25: v("pm2_5"), o3: v("ozone"), pollen: Object.entries(POLLEN).map(([k, [name, hi]]) => ({ name, v: v(k), hi })).filter(p => p.v != null) };
+  });
+}
+const uvLevel = u => u < 3 ? "Low" : u < 6 ? "Moderate" : u < 8 ? "High" : u < 11 ? "Very high" : "Extreme";
+const aqiLevel = a => a < 20 ? "Good" : a < 40 ? "Fair" : a < 60 ? "Moderate" : a < 80 ? "Poor" : a < 100 ? "Very poor" : "Extremely poor";
+
+/* ---------- hazards: storms, freezing rain/snow, ice, fog, crosswind gusts, heat ---------- */
+const HAZ = { storm: "Thunderstorm risk", frz: "Freezing rain", snow: "Snow", ice: "Ice risk", fog: "Fog", xwind: "Strong crosswind gusts", heat: "Heat stress" };
+const STORM = [95, 96, 99], FRZ = [56, 57, 66, 67], SNOW = [71, 73, 75, 77, 85, 86];
+function detectHazards(S, tr) {
+  const eles = S.map(s => s.ele).sort((a, b) => a - b), high = eles[Math.floor(eles.length * 0.85)];
+  const at = S.map(s => {
+    const h = [], desc = s.grade <= -0.04, exposed = tr.hasEle && s.ele >= high && s.ele - eles[0] > 100;
+    if (STORM.includes(s.code) || (s.cape >= 1500 && s.pop >= 40)) h.push(["storm", "bad", STORM.includes(s.code) ? wmo(s.code)[0] : `unstable air (CAPE ${r0(s.cape)} J/kg) and ${r0(s.pop)}% rain chance`]);
+    if (FRZ.includes(s.code)) h.push(["frz", "bad", wmo(s.code)[0]]);
+    else if (SNOW.includes(s.code)) h.push(["snow", "bad", wmo(s.code)[0]]);
+    if (s.temp <= 2 && (s.precip > 0 || s.wet12 >= 0.5 || s.rh >= 92))
+      h.push(["ice", desc || s.temp <= 0 ? "bad" : "warn", `${r1(s.temp)} °C${s.precip > 0 || s.wet12 >= 0.5 ? `, ${r1(s.wet12)} mm of rain in the last 12 h` : `, ${r0(s.rh)}% humidity`}${desc ? `, on a ${r0(-s.grade * 100)}% descent` : ""}`]);
+    if ([45, 48].includes(s.code) || s.vis < 1000)
+      h.push(["fog", s.vis < 200 ? "bad" : "warn", s.vis < 1e4 ? `visibility about ${s.vis >= 1000 ? r1(s.vis / 1000) + " km" : r0(s.vis / 10) * 10 + " m"}; lights on` : `${wmo(s.code)[0]}; lights on`]);
+    const xg = s.gust * Math.abs(Math.sin(rad(s.rel)));  // side-on part of the 10 m gusts
+    if (xg >= 40) h.push(["xwind", xg >= 55 || (desc && xg >= 45) ? "bad" : "warn", `${r0(xg)} km/h side-on gusts from the ${s.side}${exposed ? " on exposed high ground" : ""}${desc ? " while descending" : ""}`]);
+    if (s.feels >= 35) h.push(["heat", s.feels >= 40 ? "bad" : "warn", `feels like ${r0(s.feels)} °C`]);
+    return h;
+  });
+  // merge checkpoints with the same hazard into stretches (bridging gaps of up to two checkpoints), keeping the worst detail
+  const out = [];
+  Object.keys(HAZ).forEach(type => {
+    let cur = null;
+    at.forEach((h, k) => {
+      const x = h.find(z => z[0] === type);
+      if (!x) return;
+      if (cur && cur.k1 >= k - 3) { cur.k1 = k; if (x[1] === "bad" && cur.sev !== "bad") { cur.sev = "bad"; cur.detail = x[2]; } }
+      else { cur = { type, sev: x[1], k0: k, k1: k, detail: x[2] }; out.push(cur); }
+    });
+  });
+  return out.sort((a, b) => a.k0 - b.k0 || (a.sev === "bad" ? -1 : 1));
+}
+const hazWhere = z => { const S = state.samples, a = S[z.k0], b = S[z.k1]; return z.k0 === z.k1 ? `around km ${r0(a.km)} (${fmtTime(a.eta)})` : `km ${r0(a.km)}–${r0(b.km)} (${fmtTime(a.eta)}–${fmtTime(b.eta)})`; };
 
 /* ---------- WMO weather codes ---------- */
 const ICON = {
@@ -831,6 +920,7 @@ function drawMap(fit) {
     pin(p, `<svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.cup}</svg>`, css("--accent"),
       `Stop at km ${r1(st.km)} · ${st.min} min<br>arrive ${fmtTime(state.startMs + (p.t - st.min * 60) * 1000)}`);
   });
+  state.hazards.forEach(z => pin(S[z.k0], "!", css(z.sev === "bad" ? "--head" : "--cross"), `<b>${HAZ[z.type]}</b> ${hazWhere(z)}<br>${z.detail}`));
   if (!hoverMarker) hoverMarker = L.circleMarker([0, 0], { radius: 8, color: "#fff", weight: 3, fillColor: css("--accent"), fillOpacity: 1, interactive: false });
   hoverMarker.setStyle({ fillColor: css("--accent") });
   if (fit) map.fitBounds(L.latLngBounds(ll), { padding: [24, 24] });
@@ -890,6 +980,13 @@ const crosshair = {
       g.save(); g.strokeStyle = css("--ink"); g.globalAlpha = alpha; g.setLineDash(dash); g.lineWidth = 1;
       g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.restore();
     };
+    if (c.canvas.id === "cElev" && state.hazards) {
+      const S = state.samples, half = S[1] ? (S[1].km - S[0].km) / 2 : 0;
+      state.hazards.forEach(z => {
+        const x0 = Math.max(left, c.scales.x.getPixelForValue(S[z.k0].km - half)), x1 = Math.min(right, c.scales.x.getPixelForValue(S[z.k1].km + half));
+        g.save(); g.fillStyle = css(z.sev === "bad" ? "--head" : "--cross"); g.globalAlpha = .14; g.fillRect(x0, top, x1 - x0, bottom - top); g.restore();
+      });
+    }
     state.opts.stops.forEach(st => vline(st.km, .22, [2, 3]));
     if (hoverKm != null) vline(hoverKm, .55, [4, 3]);
   }
@@ -917,14 +1014,31 @@ function renderSummary() {
     ["wind", "Net wind", `${avgHead >= 0 ? "+" : "−"}${r1(Math.abs(avgHead))} <small>km/h</small>`, `${avgHead >= 0.5 ? "Headwind" : avgHead <= -0.5 ? "Tailwind" : "Neutral"} · ${sim.windMin >= 0 ? "+" : "−"}${r0(Math.abs(sim.windMin))} min vs still air`],
     ["gust", "Strongest gust", `${r0(maxOf(S, "gust"))} <small>km/h</small>`, `Max sustained ${r0(maxOf(S, "ws"))} km/h at 10 m`],
     ["drop", "Rain", `${r0(maxPop)} <small>% max</small>`, rain > 0.05 ? `~${r1(rain)} mm on the way` : "Dry forecast"],
-    ["shield", ...conf]
+    ["shield", ...conf],
+    ["sun", "Sun & air", `UV ${r0(maxOf(S, "uv"))}`, `${uvLevel(maxOf(S, "uv"))} UV · ${airTile()}`]
   ];
   $("#summary").innerHTML = tiles.map(([ic, l, v, d]) => `<div class="tile"><div class="th"><span class="ic">${icon(ic, 15)}</span><span class="label">${l}</span></div><span class="v">${v}</span><span class="d">${d}</span></div>`).join("");
 }
 
+function airTile() {
+  const A = state.air, Aq = A ? A.filter(Boolean) : [];
+  if (A === undefined) return "air quality loading";
+  if (!Aq.length) return "no air forecast this far out";
+  const worst = Math.max(...Aq.map(a => a.aqi));
+  return `AQI ${r0(worst)} ${aqiLevel(worst).toLowerCase()}`;
+}
+
+function renderHazards() {
+  const Z = state.hazards;
+  $("#hazards").innerHTML = Z.length
+    ? Z.map(z => `<li class="${z.sev}"><button type="button" class="hz" data-km="${state.samples[z.k0].km}"><b>${HAZ[z.type]}</b> ${hazWhere(z)}<span class="sub"> · ${z.detail}</span></button></li>`).join("")
+    : `<li class="good">No weather hazards flagged along the route.</li>`;
+}
+
 function renderReadout() {
   const km = hoverKm == null ? 0 : hoverKm, k = state.samples.indexOf(nearestSample(km)), s = state.samples[k], p = locate(state.track, km * 1000);
-  const [lbl, ic] = wmo(s.code), e = state.ens && state.ens[k];
+  const [lbl, ic] = wmo(s.code), e = state.ens && state.ens[k], a = state.air && state.air[k];
+  const pol = a && a.pollen.filter(p => p.v >= p.hi / 5).sort((x, y) => y.v / y.hi - x.v / x.hi)[0];
   $("#readout").innerHTML = `
     <div><div class="when">km ${r1(km)} · ${fmtTime(state.startMs + p.t * 1000)}</div>
     <div class="wx" style="margin-top:4px">${icon(ic, 20)} ${lbl}${state.track.hasEle ? ` · ${r0(p.ele)} m` : ""}</div></div>
@@ -936,6 +1050,7 @@ function renderReadout() {
       <dt>Speed here</dt><dd>${r1(s.spd)} km/h <span class="sub">(${r1(s.spd0)} in still air)</span></dd>
       <dt>Rain</dt><dd>${r0(s.pop)}% chance${s.precip > 0.05 ? `, ${r1(s.precip)} mm/h` : ""}${e && e.rain != null ? ` <span class="sub">· ${r0(e.rain)}% of members wet</span>` : ""}</dd>
       <dt>Sky</dt><dd>${r0(s.cloud)}% cloud · ${r0(s.rh)}% humidity</dd>
+      <dt>Sun &amp; air</dt><dd>UV ${r1(s.uv)}${a ? ` · AQI ${r0(a.aqi)} <span class="sub">${aqiLevel(a.aqi).toLowerCase()}</span>` : ""}${pol ? ` · ${pol.name} pollen ${pol.v >= pol.hi ? "high" : "moderate"}` : ""}</dd>
     </dl>`;
 }
 
@@ -978,6 +1093,18 @@ function renderNotes() {
   else if (state.sun && state.sun.set) notes.push(["info", `Sunset ${fmtTime(state.sun.set)}; you finish ${fmtDur((state.sun.set - end) / 1000)} before.`]);
   const ahead = (state.startMs - Date.now()) / DAY;
   if (ahead > 5) notes.push(["warn", `This ride is ${r0(ahead)} days out. Treat it as a trend and check again closer to the day.`]);
+  const uvMax = maxOf(S, "uv");
+  if (uvMax >= 3) notes.push([uvMax >= 6 ? "warn" : "info", `UV peaks at ${r1(uvMax)} (${uvLevel(uvMax).toLowerCase()}) around ${fmtTime(S.find(x => x.uv === uvMax).eta)}. ${uvMax >= 6 ? "Suncream, and cover arms and neck." : "Suncream on exposed skin."}`]);
+  const Aq = state.air ? S.map((s, k) => [s, state.air[k]]).filter(x => x[1]) : [];
+  if (Aq.length) {
+    const [ws, wa] = Aq.reduce((x, y) => y[1].aqi > x[1].aqi ? y : x);
+    if (wa.aqi >= 60) notes.push([wa.aqi >= 80 ? "bad" : "warn", `Air quality ${aqiLevel(wa.aqi).toLowerCase()} (AQI ${r0(wa.aqi)}) around km ${r0(ws.km)}. Keep the effort easy if you're sensitive to it.`]);
+    const pol = {};
+    Aq.forEach(([, a]) => a.pollen.forEach(p => { if (!pol[p.name] || p.v > pol[p.name].v) pol[p.name] = p; }));
+    const hi = Object.values(pol).filter(p => p.v >= p.hi), mid = Object.values(pol).filter(p => p.v >= p.hi / 5 && p.v < p.hi);
+    if (hi.length) notes.push(["warn", `High ${hi.map(p => p.name).join(" and ")} pollen. If you get hay fever, take your antihistamine before you go.`]);
+    else if (mid.length) notes.push(["info", `Moderate ${mid.map(p => p.name).join(", ")} pollen.`]);
+  }
   if (TZ !== DEVICE_TZ) notes.push(["info", `Times are local to the route (${TZ.replace(/_/g, " ")}), not this device.`]);
   if (tr.eleSrc === "dem") notes.push(["info", "Your file had no elevation, so climbs come from a 90 m terrain model."]);
   $("#notes").innerHTML = notes.map(([c, t]) => `<li class="${c}">${t}</li>`).join("");
@@ -987,7 +1114,7 @@ function renderTable() {
   const S = state.samples, multiDay = fmtDay(S[0].eta) !== fmtDay(S[S.length - 1].eta);
   $("#spacingLabel").textContent = `every ${r1(S[1] ? S[1].km - S[0].km : 0)} km · ${fmtDay(state.startMs)} · times in ${TZ.replace(/_/g, " ")}`;
   const stopAt = s => state.opts.stops.filter(st => nearestSample(st.km) === s);
-  $("#rows").innerHTML = S.map(s => {
+  $("#rows").innerHTML = S.map((s, k) => {
     const [lbl, ic] = wmo(s.code), st = stopAt(s);
     return `<tr tabindex="0" aria-selected="false"><td class="mono lead" data-label="Km">${r1(s.km).toFixed(1)} km<span class="stopmark">${st.map(x => `· stop ${x.min}′`).join(" ")}</span></td><td data-label="Pass at">${multiDay ? fmtDay(s.eta) + " " : ""}${fmtTime(s.eta)}</td>
       <td data-label="Sky"><span class="wx">${icon(ic)}${lbl}</span></td><td data-label="Temp">${r1(s.temp)}°</td><td data-label="On bike">${r0(s.bike)}°</td>
@@ -995,7 +1122,7 @@ function renderTable() {
       <td data-label="From"><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)}${compass(s.wdir)}</span></td>
       <td data-label="For you">${windLabel(s)}</td>
       <td data-label="Rain"><span class="bar" style="width:${Math.max(2, s.pop * 0.4)}px"></span>${r0(s.pop)}%${s.precip > 0.05 ? ` · ${r1(s.precip)} mm` : ""}</td>
-      <td data-label="Cloud">${r0(s.cloud)}%</td><td data-label="Humidity">${r0(s.rh)}%</td><td data-label="Elev.">${state.track.hasEle ? r0(s.ele) + " m" : "—"}</td></tr>`;
+      <td data-label="Cloud">${r0(s.cloud)}%</td><td data-label="Humidity">${r0(s.rh)}%</td><td data-label="UV">${r0(s.uv)}</td><td data-label="AQI">${state.air && state.air[k] ? r0(state.air[k].aqi) : "—"}</td><td data-label="Elev.">${state.track.hasEle ? r0(s.ele) + " m" : "—"}</td></tr>`;
   }).join("");
   [...$("#rows").children].forEach((row, i) => {
     const pick = () => { setHover(S[i].km); map.panTo([S[i].lat, S[i].lon]); };
@@ -1083,6 +1210,14 @@ function renderCharts() {
   ] }, options: opts({ y: yAx({ min: 0, max: 360, ticks: { stepSize: 45, callback: v => card[v] || compass(v) } }) }, "°") });
   charts[charts.length - 1].options.plugins.tooltip.callbacks.label = i => ` ${i.dataset.label}: ${compass(i.parsed.y)} (${r0(i.parsed.y)}°)`;
 
+  mk("#cUV", { type: "line", data: { datasets: [lineDs("UV index", xy("uv"), css("--warm"), { fill: "origin", backgroundColor: alpha(css("--warm"), .16), tension: .3 })] },
+    options: opts({ y: yAx({ min: 0, suggestedMax: 8, ticks: { stepSize: 2 } }) }, "", false) });
+
+  const A = state.air, hasAir = A && A.some(Boolean);
+  mk("#cAir", { type: "line", data: { datasets: hasAir ? [lineDs("European AQI", S.map((s, k) => ({ x: s.km, y: A[k] ? A[k].aqi : null })), css("--accent"), { spanGaps: true, fill: "origin", backgroundColor: alpha(css("--accent"), .12) })] : [] },
+    options: opts({ y: yAx({ min: 0, suggestedMax: 60, ticks: { stepSize: 20 } }) }, "", false) });
+  $("#airSub").textContent = A === undefined ? "European AQI · loading…" : hasAir ? "European AQI · under 20 good, 20–40 fair, 40–60 moderate, 60+ poor" : "No air-quality forecast for this date (it covers about the next 5 days)";
+
   // exposure by relative direction, time-weighted over every track point
   const sectors = state.sim.sectors;
   const secCol = ["--head", "--head", "--cross", "--tail", "--tail", "--tail", "--cross", "--head"].map(css);
@@ -1103,17 +1238,18 @@ function scoreStarts(tr, S, locs, o, dayWall, win) {
     if (!isFinite(ms) || ms < win[0]) continue;
     const sim = simulate(tr, S, locs, ms, o, false), end = ms + sim.dur * 1000;
     if (end > win[1]) break;
-    let wet = 0, mm = 0, dark = 0, minBike = Infinity, head = 0;
+    let wet = 0, mm = 0, dark = 0, storm = 0, minBike = Infinity, head = 0;
     S.forEach((s, k) => {
       const a = sim.acc[k], eta = ms + locate(tr, s.m, sim.t).t * 1000, w = wxAt(locs[k], eta), dt = a.w / 60;
       const spd = a.w ? a.d / a.w * 3.6 : o.speed, hd = a.w ? a.h / a.w : 0;
       wet += (w.pop / 100) * dt; mm += w.precip * dt / 60; head += hd * dt;
       if (isDark(eta, days)) dark += dt;
+      if (STORM.includes(w.code) || (w.cape >= 1500 && w.pop >= 40)) storm += dt;
       minBike = Math.min(minBike, riderFeels(w.temp, spd + hd, w.feels));
     });
-    // "effective minutes": ride time plus penalties for getting wet, riding in the dark and the cold
-    const score = sim.dur / 60 + 0.8 * wet + 0.5 * dark + 3 * Math.max(0, 4 - minBike);
-    out.push({ ms, dur: sim.dur, wet, mm, dark, minBike, head: head / (sim.moving / 60 || 1), score, rainy: wet / (sim.moving / 60) >= 0.4 });
+    // "effective minutes": ride time plus penalties for getting wet, storms, riding in the dark and the cold
+    const score = sim.dur / 60 + 0.8 * wet + 2 * storm + 0.5 * dark + 3 * Math.max(0, 4 - minBike);
+    out.push({ ms, dur: sim.dur, wet, mm, dark, storm, minBike, head: head / (sim.moving / 60 || 1), score, rainy: wet / (sim.moving / 60) >= 0.4 });
   }
   return out;
 }
@@ -1129,10 +1265,10 @@ function renderBest() {
   const ranked = [...B].sort((a, b) => a.score - b.score), top = [];
   for (const c of ranked) { if (top.every(t => Math.abs(t.ms - c.ms) >= HOUR)) top.push(c); if (top.length === 3) break; }
   const mine = B.reduce((a, b) => Math.abs(b.ms - cur) < Math.abs(a.ms - cur) ? b : a);
-  const why = c => [fmtDur(c.dur), c.wet / (c.dur / 60) < 0.1 ? "dry" : `${r0(100 * c.wet / (c.dur / 60))}% rain risk`, c.dark > 1 ? `${r0(c.dark)} min dark` : "daylight", `${c.head >= 0 ? "head" : "tail"} ${r0(Math.abs(c.head))}`].join(" · ");
+  const why = c => [fmtDur(c.dur), c.wet / (c.dur / 60) < 0.1 ? "dry" : `${r0(100 * c.wet / (c.dur / 60))}% rain risk`, c.dark > 1 ? `${r0(c.dark)} min dark` : "daylight", ...(c.storm > 1 ? ["storm risk"] : []), `${c.head >= 0 ? "head" : "tail"} ${r0(Math.abs(c.head))}`].join(" · ");
   $("#picks").innerHTML = top.map((c, i) => `<div class="pick${i ? "" : " top"}"><span class="t">${fmtTime(c.ms)}</span><span>${i ? `Option ${i + 1}` : "Best start"}</span><button class="btn" type="button" data-ms="${c.ms}"${Math.abs(c.ms - cur) < 6e4 ? " disabled" : ""}>${Math.abs(c.ms - cur) < 6e4 ? "Selected" : "Use"}</button><span class="m">${why(c)}</span></div>`).join("") +
     (Math.abs(mine.ms - top[0].ms) >= 6e4 && mine.score - top[0].score >= 5 ? `<p class="hint" style="margin:0">Leaving at ${fmtTime(top[0].ms)} instead of ${fmtTime(mine.ms)} scores ${r0(mine.score - top[0].score)} effective minutes better.</p>` : `<p class="hint" style="margin:0">Your chosen start is among the best on this day.</p>`);
-  $("#bestSub").textContent = `${fmtDay(cur)} · every half hour, scored as ride time with this wind plus penalties for rain risk, darkness and cold; shorter bars are better`;
+  $("#bestSub").textContent = `${fmtDay(cur)} · every half hour, scored as ride time with this wind plus penalties for rain risk, storms, darkness and cold; shorter bars are better`;
 
   const { ink, line, tooltip } = chartTheme();
   const topSet = new Set(top.map(t => t.ms)), best = top[0].score;
@@ -1151,7 +1287,7 @@ function renderBest() {
 function useStart(ms) { $("#start").value = msToWall(ms); run(false); }
 
 function renderAll(fit) {
-  renderSummary(); renderNotes(); drawMap(fit); renderCharts(); renderBest(); renderTable(); renderReadout();
+  renderSummary(); renderHazards(); renderNotes(); drawMap(fit); renderCharts(); renderBest(); renderTable(); renderReadout();
   const sc = $("#scrub"); sc.max = r1(state.track.total / 1000);
 }
 
@@ -1205,7 +1341,7 @@ async function run(fit) {
       s.air = Math.max(0, s.spd + s.head);
       s.bike = riderFeels(s.temp, s.air, s.feels);
     });
-    Object.assign(state, { samples: S, startMs, endMs, sim, locs, opts: o, ens: undefined });
+    Object.assign(state, { samples: S, startMs, endMs, sim, locs, opts: o, ens: undefined, air: undefined, hazards: detectHazards(S, tr) });
     state.sun = { rise: closest(locs[0].daily && locs[0].daily.sunrise, startMs), set: closest(locs[locs.length - 1].daily && locs[locs.length - 1].daily.sunset, endMs) };
     state.best = scoreStarts(tr, S, locs, o, dayWall, win);
     hoverKm = null;
@@ -1216,6 +1352,11 @@ async function run(fit) {
       if (id !== runSeq) return;
       state.ens = ens || null;
       renderSummary(); renderCharts(); renderReadout();
+    });
+    fetchAir(S, startMs, endMs).catch(() => null).then(air => {
+      if (id !== runSeq) return;
+      state.air = air || null;
+      renderSummary(); renderNotes(); renderCharts(); renderTable(); renderReadout();
     });
   } catch (e) {
     if (id === runSeq) setStatus(e.message || "Couldn't reach the weather service. Check your connection and try again.", true);
@@ -1372,6 +1513,10 @@ $("#metric").addEventListener("click", e => {
   if (state.samples) drawMap(false);
 });
 $("#scrub").addEventListener("input", e => { if (state.samples) setHover(parseFloat(e.target.value)); });
+$("#hazards").addEventListener("click", e => {
+  const b = e.target.closest(".hz"); if (!b) return;
+  const km = +b.dataset.km, s = nearestSample(km); setHover(km); map.panTo([s.lat, s.lon]);
+});
 $("#picks").addEventListener("click", e => { const b = e.target.closest("button[data-ms]"); if (b) useStart(+b.dataset.ms); });
 $("#stops").addEventListener("change", () => { if (state.track) run(false); });
 $("#wf").addEventListener("change", () => { if (state.track) run(false); });
