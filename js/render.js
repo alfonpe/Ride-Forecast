@@ -30,8 +30,8 @@ export function renderSummary() {
   const maxPop = maxOf(S, "pop"), rain = S.reduce((a, s) => a + s.precip * s.dt / 3600, 0), peak = maxOf(S, "precip"), lvl = rainLevel(peak);
   const ens = state.ens, E = ens ? S.map((s, k) => ens[k]).filter(Boolean) : [];
   let conf;
-  if (ens === undefined) conf = ["Confidence", "…", "loading ensemble"];
-  else if (!E.length) conf = ["Confidence", "—", "no ensemble for this date"];
+  if (ens === undefined) conf = ["Confidence", "…", "checking the forecast runs"];
+  else if (!E.length) conf = ["Confidence", "—", "no forecast runs this far ahead"];
   else {
     const tSp = E.reduce((a, e) => a + (e.t90 - e.t10), 0) / E.length, wSp = E.reduce((a, e) => a + (e.w90 - e.w10), 0) / E.length;
     const lvl = tSp < 2.5 && wSp < 8 ? "High" : tSp > 5 || wSp > 15 ? "Low" : "Medium";
@@ -79,7 +79,7 @@ export function renderReadout() {
       <dt>Wind</dt><dd><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)} ${r0(s.ws)} km/h from ${compass(s.wdir)}</span>, gusts ${r0(s.gust)}</dd>
       <dt>For you</dt><dd>${windLabel(s)} <span class="sub">heading ${compass(s.brg)}</span></dd>
       <dt>Speed here</dt><dd>${r1(s.spd)} km/h <span class="sub">(${r1(s.spd0)} in still air)</span></dd>
-      <dt>Rain</dt><dd>${r0(s.pop)}% chance${s.precip >= 0.1 ? ` · ${rainLevel(s.precip)[2].toLowerCase()}, ${r1(s.precip)} mm/h` : ", no rain amount"}${e && e.rain != null ? ` <span class="sub">· ${r0(e.rain)}% of members wet</span>` : ""}</dd>
+      <dt>Rain</dt><dd>${r0(s.pop)}% chance${s.precip >= 0.1 ? ` · ${rainLevel(s.precip)[2].toLowerCase()}, ${r1(s.precip)} mm/h` : ", no rain amount"}${e && e.rain != null ? ` <span class="sub">· ${r0(e.rain)}% of forecast runs wet</span>` : ""}</dd>
       <dt>Sky</dt><dd>${r0(s.cloud)}% cloud · ${r0(s.rh)}% humidity</dd>
       <dt>Sun &amp; air</dt><dd>UV ${r1(s.uv)}${a ? ` · AQI ${r0(a.aqi)} <span class="sub">${aqiLevel(a.aqi).toLowerCase()}</span>` : ""}${pol ? ` · ${pol.name} pollen ${pol.v >= pol.hi ? "high" : "moderate"}` : ""}</dd>
     </dl>`;

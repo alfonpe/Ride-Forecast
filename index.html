@@ -121,16 +121,17 @@
 
   <section class="charts">
     <div class="panel">
-      <div class="panel-head"><div><h2>Temperature</h2><div class="sub">°C · air, how it feels on the bike, ensemble range</div></div></div>
+      <div class="panel-head"><div><h2>Temperature</h2><div class="sub">°C · air, how it feels on the bike, likely range (shaded: 8 in 10 forecast runs fall inside)</div></div></div>
       <div class="chart-box"><canvas id="cTemp"></canvas></div>
     </div>
     <div class="panel">
-      <div class="panel-head"><div><h2>Wind</h2><div class="sub">km/h · bars = headwind (+) / tailwind (−) at rider height</div></div></div>
+      <div class="panel-head"><div><h2>Wind</h2><div class="sub">km/h · bars = headwind (+) / tailwind (−) at rider height; shaded = likely wind range</div></div></div>
       <div class="chart-box"><canvas id="cWind"></canvas></div>
     </div>
     <div class="panel">
-      <div class="panel-head"><div><h2>Rain &amp; cloud</h2><div class="sub">% · forecast rain chance, ensemble members with rain, cloud cover</div></div></div>
+      <div class="panel-head"><div><h2>Rain &amp; cloud</h2><div class="sub">% · rain chance, a second opinion, cloud cover</div></div></div>
       <div class="chart-box"><canvas id="cRain"></canvas></div>
+      <p class="hint">The bold line is a second opinion: the European weather centre runs its forecast about 50 times from slightly different starting points, and this is the share of those runs that bring rain when you pass. Near 0% or 100% means the runs agree; in between, the forecast is uncertain, so pack a jacket and check again closer to the day.</p>
       <div class="sub">How hard it rains when you pass (mm/h): <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 30%,transparent)"></b>drizzle &lt;0.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 55%,transparent)"></b>light &lt;2.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 80%,transparent)"></b>moderate &lt;7.6</span> <span class="key"><b class="sq" style="background:var(--cool)"></b>heavy</span></div>
       <div class="chart-box short"><canvas id="cRainAmt"></canvas></div>
     </div>

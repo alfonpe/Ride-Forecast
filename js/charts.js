@@ -76,13 +76,13 @@ export function renderCharts(only) {
   mk("#cElev", { type: "line", data: { datasets: [lineDs("Elevation", tr.hasEle ? prof : [], muted, { fill: "origin", backgroundColor: alpha(css("--elev"), .7), borderWidth: 1.25, tension: .2 })] }, options: eo });
 
   mk("#cTemp", { type: "line", data: { datasets: [
-    ...band("t10", "t90", css("--warm"), "Ensemble 10–90%"),
+    ...band("t10", "t90", css("--warm"), "Likely range"),
     lineDs("Air temperature", xy("temp"), css("--warm")),
     lineDs("On the bike", xy("bike"), css("--cool"), { borderDash: [5, 4] })
   ] }, options: opts({ y: yAx({ ticks: { callback: v => v + "°" } }) }, " °C") });
 
   mk("#cWind", { type: "bar", data: { datasets: [
-    ...band("w10", "w90", ink, "Ensemble 10–90% (10 m)"),
+    ...band("w10", "w90", ink, "Likely range (10 m)"),
     { type: "bar", label: "Head(+)/tail(−) for you", data: xy("head"), backgroundColor: S.map(s => alpha(s.head >= 0 ? css("--head") : css("--tail"), .6)), borderWidth: 0, borderRadius: 3, barPercentage: 1, categoryPercentage: .85, order: 5, pointStyle: "rect" },
     lineDs("Wind (10 m)", xy("ws"), ink),
     lineDs("Gusts", xy("gust"), muted, { borderDash: [4, 4], borderWidth: 1.5 })
@@ -90,7 +90,7 @@ export function renderCharts(only) {
 
   mk("#cRain", { type: "bar", data: { datasets: [
     { type: "bar", label: "Rain chance", data: xy("pop"), backgroundColor: alpha(css("--cool"), .75), borderWidth: 0, borderRadius: 3, barPercentage: 1, categoryPercentage: .85, pointStyle: "rect" },
-    ...(E && E.some(e => e && e.rain != null) ? [lineDs("Ensemble members with rain", S.map((s, k) => ({ x: s.km, y: E[k] ? E[k].rain : null })), ink, { stepped: "middle", tension: 0, spanGaps: true })] : []),
+    ...(E && E.some(e => e && e.rain != null) ? [lineDs("Second opinion: % of forecast runs with rain", S.map((s, k) => ({ x: s.km, y: E[k] ? E[k].rain : null })), ink, { stepped: "middle", tension: 0, spanGaps: true })] : []),
     lineDs("Cloud cover", xy("cloud"), muted, { fill: "origin", backgroundColor: alpha(css("--elev"), .35), borderWidth: 1.5, order: 10 })
   ] }, options: opts({ y: yAx({ min: 0, max: 100, ticks: { callback: v => v + "%" } }) }, "%") });
 
