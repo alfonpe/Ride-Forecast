@@ -45,3 +45,9 @@ test("daylight and levels", () => {
   assert.equal(uvLevel(7), "High");
   assert.equal(aqiLevel(65), "Poor");
 });
+
+test("rain intensity scale", async () => {
+  const { rainLevel } = await import("../js/weather.js");
+  assert.deepEqual([0, 0.05, 0.3, 1, 4, 10, 40].map(v => rainLevel(v)[1]), ["dry", "dry", "drizzle", "light", "moderate", "heavy", "violent"]);
+  assert.equal(rainLevel(null)[1], "dry");
+});

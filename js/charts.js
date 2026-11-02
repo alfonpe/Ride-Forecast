@@ -4,6 +4,7 @@ import { catColor } from "./render.js";
 import { state } from "./state.js";
 import { fmtDay, fmtDur, fmtTime } from "./time.js";
 import { $, HOUR, alpha, css, r0, r1 } from "./util.js";
+import { rainLevel } from "./weather.js";
 
 export let charts = [], bestChart = null;
 
@@ -75,13 +76,13 @@ export function renderCharts(only) {
   mk("#cElev", { type: "line", data: { datasets: [lineDs("Elevation", tr.hasEle ? prof : [], muted, { fill: "origin", backgroundColor: alpha(css("--elev"), .7), borderWidth: 1.25, tension: .2 })] }, options: eo });
 
   mk("#cTemp", { type: "line", data: { datasets: [
-    ...band("t10", "t90", css("--warm"), "Ensemble 10–90%"),
+    ...band("t10", "t90", css("--warm"), "Likely range"),
     lineDs("Air temperature", xy("temp"), css("--warm")),
     lineDs("On the bike", xy("bike"), css("--cool"), { borderDash: [5, 4] })
   ] }, options: opts({ y: yAx({ ticks: { callback: v => v + "°" } }) }, " °C") });
 
   mk("#cWind", { type: "bar", data: { datasets: [
-    ...band("w10", "w90", ink, "Ensemble 10–90% (10 m)"),
+    ...band("w10", "w90", ink, "Likely range (10 m)"),
     { type: "bar", label: "Head(+)/tail(−) for you", data: xy("head"), backgroundColor: S.map(s => alpha(s.head >= 0 ? css("--head") : css("--tail"), .6)), borderWidth: 0, borderRadius: 3, barPercentage: 1, categoryPercentage: .85, order: 5, pointStyle: "rect" },
     lineDs("Wind (10 m)", xy("ws"), ink),
     lineDs("Gusts", xy("gust"), muted, { borderDash: [4, 4], borderWidth: 1.5 })
@@ -89,9 +90,17 @@ export function renderCharts(only) {
 
   mk("#cRain", { type: "bar", data: { datasets: [
     { type: "bar", label: "Rain chance", data: xy("pop"), backgroundColor: alpha(css("--cool"), .75), borderWidth: 0, borderRadius: 3, barPercentage: 1, categoryPercentage: .85, pointStyle: "rect" },
-    ...(E && E.some(e => e && e.rain != null) ? [lineDs("Ensemble members with rain", S.map((s, k) => ({ x: s.km, y: E[k] ? E[k].rain : null })), ink, { stepped: "middle", tension: 0, spanGaps: true })] : []),
+    ...(E && E.some(e => e && e.rain != null) ? [lineDs("Second opinion: % of forecast runs with rain", S.map((s, k) => ({ x: s.km, y: E[k] ? E[k].rain : null })), ink, { stepped: "middle", tension: 0, spanGaps: true })] : []),
     lineDs("Cloud cover", xy("cloud"), muted, { fill: "origin", backgroundColor: alpha(css("--elev"), .35), borderWidth: 1.5, order: 10 })
   ] }, options: opts({ y: yAx({ min: 0, max: 100, ticks: { callback: v => v + "%" } }) }, "%") });
+
+  // how hard it rains when you pass; bars shade darker with intensity
+  const lvlAlpha = { dry: 0, drizzle: .3, light: .55, moderate: .8, heavy: 1, violent: 1 };
+  mk("#cRainAmt", { type: "bar", data: { datasets: [
+    { type: "bar", label: "Rain", data: xy("precip"), backgroundColor: S.map(s => alpha(css("--cool"), lvlAlpha[rainLevel(s.precip)[1]] || .3)), borderWidth: 0, borderRadius: 3, barPercentage: 1, categoryPercentage: .85 }
+  ] }, options: opts({ y: yAx({ min: 0, suggestedMax: 2.5, ticks: { maxTicksLimit: 4, callback: v => v + " mm" } }) }, " mm/h", false) });
+  const ra = charts.find(c => c.canvas.id === "cRainAmt");
+  if (ra) ra.options.plugins.tooltip.callbacks.label = i => ` ${rainLevel(i.parsed.y)[2]}: ${r1(i.parsed.y)} mm/h`;
 
   mk("#cSpeed", { type: "line", data: { datasets: [
     lineDs("With wind", xy("spd"), css("--accent")),
@@ -135,7 +144,7 @@ export function renderBest() {
   const ranked = [...B].sort((a, b) => a.score - b.score), top = [];
   for (const c of ranked) { if (top.every(t => Math.abs(t.ms - c.ms) >= HOUR)) top.push(c); if (top.length === 3) break; }
   const mine = B.reduce((a, b) => Math.abs(b.ms - cur) < Math.abs(a.ms - cur) ? b : a);
-  const why = c => [fmtDur(c.dur), c.wet / (c.dur / 60) < 0.1 ? "dry" : `${r0(100 * c.wet / (c.dur / 60))}% rain risk`, c.dark > 1 ? `${r0(c.dark)} min dark` : "daylight", ...(c.storm > 1 ? ["storm risk"] : []), `${c.head >= 0 ? "head" : "tail"} ${r0(Math.abs(c.head))}`].join(" · ");
+  const why = c => [fmtDur(c.dur), c.wet / (c.dur / 60) < 0.1 ? "dry" : `${r0(100 * c.wet / (c.dur / 60))}% rain risk${c.mm >= 0.5 ? `, ~${r1(c.mm)} mm` : ""}`, c.dark > 1 ? `${r0(c.dark)} min dark` : "daylight", ...(c.storm > 1 ? ["storm risk"] : []), `${c.head >= 0 ? "head" : "tail"} ${r0(Math.abs(c.head))}`].join(" · ");
   $("#picks").innerHTML = top.map((c, i) => `<div class="pick${i ? "" : " top"}"><span class="t">${fmtTime(c.ms)}</span><span>${i ? `Option ${i + 1}` : "Best start"}</span><button class="btn" type="button" data-ms="${c.ms}"${Math.abs(c.ms - cur) < 6e4 ? " disabled" : ""}>${Math.abs(c.ms - cur) < 6e4 ? "Selected" : "Use"}</button><span class="m">${why(c)}</span></div>`).join("") +
     (Math.abs(mine.ms - top[0].ms) >= 6e4 && mine.score - top[0].score >= 5 ? `<p class="hint" style="margin:0">Leaving at ${fmtTime(top[0].ms)} instead of ${fmtTime(mine.ms)} scores ${r0(mine.score - top[0].score)} effective minutes better.</p>` : `<p class="hint" style="margin:0">Your chosen start is among the best on this day.</p>`);
   $("#bestSub").textContent = `${fmtDay(cur)} · every half hour, scored as ride time with this wind plus penalties for rain risk, storms, darkness and cold; shorter bars are better`;

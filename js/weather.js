@@ -161,3 +161,7 @@ export async function fetchAir(S, startMs, endMs) {
 }
 export const uvLevel = u => u < 3 ? "Low" : u < 6 ? "Moderate" : u < 8 ? "High" : u < 11 ? "Very high" : "Extreme";
 export const aqiLevel = a => a < 20 ? "Good" : a < 40 ? "Fair" : a < 60 ? "Moderate" : a < 80 ? "Poor" : a < 100 ? "Very poor" : "Extremely poor";
+
+// rain intensity in mm/h, as it feels on a bike; moderate and heavy follow the usual 2.5 / 7.6 mm/h split
+export const RAIN = [[0.1, "dry", "Dry"], [0.5, "drizzle", "Drizzle"], [2.5, "light", "Light rain"], [7.6, "moderate", "Moderate rain"], [30, "heavy", "Heavy rain"], [Infinity, "violent", "Violent rain"]];
+export const rainLevel = mm => RAIN.find(([hi]) => (mm || 0) < hi);

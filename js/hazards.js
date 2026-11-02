@@ -2,7 +2,7 @@ import { wmo } from "./icons.js";
 import { r0, r1, rad } from "./util.js";
 
 /* ---------- hazards: storms, freezing rain/snow, ice, fog, crosswind gusts, heat ---------- */
-export const HAZ = { storm: "Thunderstorm risk", frz: "Freezing rain", snow: "Snow", ice: "Ice risk", fog: "Fog", xwind: "Strong crosswind gusts", heat: "Heat stress" };
+export const HAZ = { rain: "Heavy rain", storm: "Thunderstorm risk", frz: "Freezing rain", snow: "Snow", ice: "Ice risk", fog: "Fog", xwind: "Strong crosswind gusts", heat: "Heat stress" };
 export const STORM = [95, 96, 99], FRZ = [56, 57, 66, 67], SNOW = [71, 73, 75, 77, 85, 86];
 export function detectHazards(S, tr) {
   const eles = S.map(s => s.ele).sort((a, b) => a - b), high = eles[Math.floor(eles.length * 0.85)];
@@ -16,6 +16,7 @@ export function detectHazards(S, tr) {
     if ([45, 48].includes(s.code) || s.vis < 1000)
       h.push(["fog", s.vis < 200 ? "bad" : "warn", s.vis < 1e4 ? `visibility about ${s.vis >= 1000 ? r1(s.vis / 1000) + " km" : r0(s.vis / 10) * 10 + " m"}; lights on` : `${wmo(s.code)[0]}; lights on`]);
     const xg = s.gust * Math.abs(Math.sin(rad(s.rel)));  // side-on part of the 10 m gusts
+    if (s.precip >= 7.6) h.push(["rain", s.precip >= 30 ? "bad" : "warn", `${r1(s.precip)} mm/h: poor grip and visibility, standing water likely`]);
     if (xg >= 40) h.push(["xwind", xg >= 55 || (desc && xg >= 45) ? "bad" : "warn", `${r0(xg)} km/h side-on gusts from the ${s.side}${exposed ? " on exposed high ground" : ""}${desc ? " while descending" : ""}`]);
     if (s.feels >= 35) h.push(["heat", s.feels >= 40 ? "bad" : "warn", `feels like ${r0(s.feels)} °C`]);
     return h;
