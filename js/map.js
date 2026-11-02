@@ -13,6 +13,7 @@ export const RAMPS = {
   temp: { stops: [[0,"#3b4cc0"],[.25,"#5fa8d3"],[.45,"#62c2a2"],[.62,"#e9cf5b"],[.8,"#f0954a"],[1,"#c8364a"]], unit: "°C", label: "Temperature" },
   head: { stops: [[0,"#1e8c5c"],[.33,"#7fc79f"],[.5,"#b9bdb7"],[.67,"#f0a37c"],[1,"#c8364a"]], unit: "km/h at rider height", label: "Tailwind / headwind" },
   pop:  { stops: [[0,"#c4d3e2"],[.3,"#7fa6d6"],[.6,"#3e6fc4"],[1,"#1b2f84"]], unit: "%", label: "Rain chance" },
+  precip: { stops: [[0,"#d5e3f0"],[.2,"#8fb8e3"],[.5,"#3e7fd0"],[1,"#14307a"]], unit: "mm/h", label: "Rain amount" },
   ws:   { stops: [[0,"#d4d0e6"],[.33,"#9a8fd0"],[.67,"#6046b0"],[1,"#2e1a6e"]], unit: "km/h at 10 m", label: "Wind speed" }
 };
 export function rampRange(key) {
@@ -20,6 +21,7 @@ export function rampRange(key) {
   const lo = Math.min(...v), hi = Math.max(...v);
   if (key === "head") { const m = Math.max(5, Math.ceil(Math.max(Math.abs(lo), Math.abs(hi)))); return [-m, m]; }
   if (key === "pop") return [0, Math.max(20, Math.ceil(hi / 10) * 10)];
+  if (key === "precip") return [0, Math.max(2.5, Math.ceil(hi))];
   if (key === "ws") return [0, Math.max(10, Math.ceil(hi / 5) * 5)];
   // temperature: whole degrees, at least a 6° span so small changes don't look dramatic
   let a = Math.floor(lo), b = Math.ceil(hi);

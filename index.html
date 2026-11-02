@@ -71,6 +71,7 @@
     <label class="check" for="hills"><input type="checkbox" id="hills" checked> Slower on climbs, faster on descents</label>
     <button class="go" id="go" type="submit">Get forecast</button>
   </form>
+  <section class="panel import" id="sharedBanner" hidden aria-live="polite"></section>
   <section class="panel import" id="importHelp" hidden aria-live="polite"></section>
   <div class="status" id="status" role="status"></div>
 
@@ -84,6 +85,7 @@
           <button type="button" data-m="head" aria-pressed="true">Head/tailwind</button>
           <button type="button" data-m="temp" aria-pressed="false">Temperature</button>
           <button type="button" data-m="pop" aria-pressed="false">Rain chance</button>
+          <button type="button" data-m="precip" aria-pressed="false">Rain amount</button>
           <button type="button" data-m="ws" aria-pressed="false">Wind speed</button>
         </div>
       </div>
@@ -129,6 +131,8 @@
     <div class="panel">
       <div class="panel-head"><div><h2>Rain &amp; cloud</h2><div class="sub">% · forecast rain chance, ensemble members with rain, cloud cover</div></div></div>
       <div class="chart-box"><canvas id="cRain"></canvas></div>
+      <div class="sub">How hard it rains when you pass (mm/h): <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 30%,transparent)"></b>drizzle &lt;0.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 55%,transparent)"></b>light &lt;2.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 80%,transparent)"></b>moderate &lt;7.6</span> <span class="key"><b class="sq" style="background:var(--cool)"></b>heavy</span></div>
+      <div class="chart-box short"><canvas id="cRainAmt"></canvas></div>
     </div>
     <div class="panel">
       <div class="panel-head"><div><h2>Predicted speed</h2><div class="sub">km/h moving · with this wind vs. in still air</div></div></div>

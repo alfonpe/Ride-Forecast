@@ -9,7 +9,7 @@ import { handleLink } from "./links.js";
 import { drawMap, initMap, map } from "./map.js";
 import { parseStops, riderFeels, simulate } from "./pacing.js";
 import { renderAll, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ } from "./render.js";
-import { routeFromHash, shareURL } from "./share.js";
+import { planFromHash, shareURL } from "./share.js";
 import { state } from "./state.js";
 import { fmtDay, fmtTime, msToWall, nextSaturday8, wallToMs, zone } from "./time.js";
 import { $, DAY, HOUR, deg, esc, r1, rad } from "./util.js";
@@ -72,6 +72,8 @@ async function run(fit) {
     renderAll(fit);
     setStatus(`Forecast for ${S.length} checkpoints, ${fmtDay(startMs)} ${fmtTime(startMs)} → ${fmtTime(endMs)}.`);
     saveSettings();
+    state.shareUrl = null;
+    shareURL().then(u => { if (id === runSeq) state.shareUrl = u; }).catch(() => {}); // ready before the tap: phones only allow sharing straight from a gesture
     fetchEnsemble(S, startMs, endMs).catch(() => null).then(ens => {
       if (id !== runSeq) return;
       state.ens = ens || null;
@@ -87,8 +89,42 @@ async function run(fit) {
   } finally { if (id === runSeq) { btn.disabled = false; btn.textContent = "Get forecast"; } }
 }
 
+/* ---------- shared ride plans ---------- */
+async function openShared() {
+  let plan;
+  try { plan = await planFromHash(); }
+  catch (e) {
+    // keep the reason on screen: the fallback route's own status message would otherwise replace it
+    const box = $("#sharedBanner");
+    box.innerHTML = `<div class="panel-head"><div><h2>This shared ride plan couldn't be opened</h2><div class="sub" style="color:var(--head)">${esc(e.message || "The link is damaged.")}</div></div><button class="btn" type="button" data-close>Close</button></div>`;
+    box.hidden = false;
+    return false;
+  }
+  if (!plan) return false;
+  if (plan.metric && $(`#metric button[data-m="${plan.metric}"]`)) {
+    state.metric = plan.metric;
+    $("#metric").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.m === plan.metric));
+  }
+  state.routes = [plan.route];
+  $("#trackField").hidden = true;
+  showSharedBanner(plan);
+  useRoute(plan.route, "Shared link", plan.tz);
+  return true;
+}
+function showSharedBanner(plan) {
+  const box = $("#sharedBanner"), tz = plan.tz || zone.name, ms = wallToMs(plan.start || "", tz);
+  const when = isFinite(ms) ? new Date(ms).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: tz }) : "";
+  const { stops } = parseStops($("#stops").value, Infinity);
+  const past = isFinite(ms) && ms < Date.now() - HOUR;
+  box.innerHTML = `<div class="panel-head"><div><h2>Shared ride plan: ${esc(plan.route.name)}</h2>
+    <div class="sub">${[when && `Start ${esc(when)}`, `${esc($("#speed").value)} km/h`, stops.length ? `stops at ${stops.map(x => `km ${r1(x.km)} (${x.min} min)`).join(", ")}` : "no stops", $("#wf").selectedOptions[0].textContent.replace(/ \(.*\)/, "").toLowerCase() + " wind"].filter(Boolean).join(" · ")}</div>
+    ${past ? `<div class="sub" style="color:var(--cross)">That start time has passed. Pick a new one above to see the forecast for your ride.</div>` : ""}</div>
+    <button class="btn" type="button" data-close>Close</button></div>`;
+  box.hidden = false;
+}
+
 /* ---------- loading routes ---------- */
-async function useRoute(route, label) {
+async function useRoute(route, label, knownTz) {
   const id = ++loadSeq;
   let tr;
   try { tr = buildTrack(route.pts); } catch (e) { setStatus(e.message, true); return; }
@@ -97,7 +133,7 @@ async function useRoute(route, label) {
   if (label) $("#fileLabel").textContent = label;
   setStatus("Preparing the route…");
   const [tz] = await Promise.all([
-    resolveTZ(tr.pts[0]),
+    knownTz || resolveTZ(tr.pts[0]),
     tr.hasEle ? null : fetchElevation(tr).catch(() => null)
   ]);
   if (id !== loadSeq) return;
@@ -126,7 +162,14 @@ function rememberRoute(text, filename) {
 }
 
 // any dropped/chosen file: GPX/TCX text, Garmin FIT, a Garmin "Export Original" .zip, or gzip
+// the user picked their own route: drop any shared plan (and its link, so a reload doesn't bring it back)
+function clearShared() {
+  $("#sharedBanner").hidden = true;
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+}
+
 async function openFile(f) {
+  clearShared();
   try {
     setStatus(`Reading ${f.name}…`);
     const r = await readRouteBytes(new Uint8Array(await f.arrayBuffer()), f.name);
@@ -184,6 +227,7 @@ document.addEventListener("drop", e => {
 $("#link").addEventListener("input", e => handleLink(e.target.value));
 $("#link").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); handleLink(e.target.value); } });
 $("#importHelp").addEventListener("click", e => { if (e.target.closest("[data-close]")) $("#importHelp").hidden = true; });
+$("#sharedBanner").addEventListener("click", e => { if (e.target.closest("[data-close]")) $("#sharedBanner").hidden = true; });
 
 $("#metric").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -201,12 +245,22 @@ $("#picks").addEventListener("click", e => { const b = e.target.closest("button[
 $("#stops").addEventListener("change", () => { if (state.track) run(false); });
 $("#wf").addEventListener("change", () => { if (state.track) run(false); });
 $("#hills").addEventListener("change", () => { if (state.track) run(false); });
+function planSummary() {
+  const st = state.opts ? state.opts.stops : [];
+  return `${state.name}, ${fmtDay(state.startMs)} ${fmtTime(state.startMs)}, ${$("#speed").value} km/h` +
+    (st.length ? `, stops at ${st.map(x => `km ${r1(x.km)} (${x.min} min)`).join(", ")}` : "");
+}
 $("#share").addEventListener("click", async () => {
   if (!state.track) return;
-  const url = shareURL();
+  const url = state.shareUrl || await shareURL();
   history.replaceState(null, "", url);
-  try { await navigator.clipboard.writeText(url); setStatus("Share link copied. It includes the route, start time, speed and stops."); }
-  catch (e) { setStatus("Share link is now in the address bar; copy it from there."); }
+  // phones: the native share sheet (WhatsApp, Messages…); desktop: copy to the clipboard
+  if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+    try { await navigator.share({ title: `Ride plan: ${state.name}`, text: `Ride plan: ${planSummary()}`, url }); setStatus("Ride plan shared."); return; }
+    catch (e) { if (e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(url); setStatus(`Link copied. It opens the full plan: ${planSummary()}.`); }
+  catch (e) { setStatus("The share link is now in the address bar; copy it from there."); }
 });
 $("#theme").addEventListener("click", () => {
   const cur = document.documentElement.dataset.theme || "auto", next = THEMES[(THEMES.indexOf(cur) + 1) % 3];
@@ -219,10 +273,13 @@ initMap();
 {
   const th = document.documentElement.dataset.theme || "auto";
   $("#theme").setAttribute("aria-label", `Theme: ${th} (click to change)`); $("#theme").title = `Theme: ${th}`;
-  const shared = (() => { try { return routeFromHash(); } catch (e) { return null; } })();
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem("rf-route") || "null"); } catch (e) {}
-  if (shared) { state.routes = [shared]; useRoute(shared, "Shared link"); }
-  else if (saved && saved.text) { loadFile(saved.text, saved.filename || "route.gpx", false); }
-  else { loadFile(demoGPX(), "demo-valencia-loop.gpx", false); $("#fileLabel").textContent = "Drop a GPX, TCX or FIT file, or Garmin .zip"; }
+  openShared().then(opened => {
+    if (opened) return;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("rf-route") || "null"); } catch (e) {}
+    if (saved && saved.text) loadFile(saved.text, saved.filename || "route.gpx", false);
+    else { loadFile(demoGPX(), "demo-valencia-loop.gpx", false); $("#fileLabel").textContent = "Drop a GPX, TCX or FIT file, or Garmin .zip"; }
+  });
 }
+// a shared link opened while the app is already open in this tab
+addEventListener("hashchange", () => openShared());

@@ -7,7 +7,7 @@ import { drawMap, map } from "./map.js";
 import { state } from "./state.js";
 import { DEVICE_TZ, fmtDay, fmtDur, fmtTime, zone } from "./time.js";
 import { $, DAY, css, maxOf, minOf, r0, r1, resetTokens } from "./util.js";
-import { aqiLevel, uvLevel } from "./weather.js";
+import { aqiLevel, rainLevel, uvLevel } from "./weather.js";
 
 export function showTZ() {
   const abbr = new Intl.DateTimeFormat("en", { timeZone: zone.name, timeZoneName: "short" }).formatToParts(Date.now()).find(x => x.type === "timeZoneName");
@@ -27,7 +27,7 @@ export const catColor = c => css(c === "head" ? "--head" : c === "tail" ? "--tai
 export function renderSummary() {
   const S = state.samples, tr = state.track, sim = state.sim, dur = sim.dur;
   const avgHead = S.reduce((a, s) => a + s.head * s.dt, 0) / (sim.moving || 1);
-  const maxPop = maxOf(S, "pop"), rain = S.reduce((a, s) => a + s.precip * s.dt / 3600, 0);
+  const maxPop = maxOf(S, "pop"), rain = S.reduce((a, s) => a + s.precip * s.dt / 3600, 0), peak = maxOf(S, "precip"), lvl = rainLevel(peak);
   const ens = state.ens, E = ens ? S.map((s, k) => ens[k]).filter(Boolean) : [];
   let conf;
   if (ens === undefined) conf = ["Confidence", "…", "loading ensemble"];
@@ -43,7 +43,8 @@ export function renderSummary() {
     ["therm", "On the bike", `${r0(minOf(S, "bike"))}–${r0(maxOf(S, "bike"))} <small>°C</small>`, `Air ${r0(minOf(S, "temp"))}–${r0(maxOf(S, "temp"))} °C`],
     ["wind", "Net wind", `${avgHead >= 0 ? "+" : "−"}${r1(Math.abs(avgHead))} <small>km/h</small>`, `${avgHead >= 0.5 ? "Headwind" : avgHead <= -0.5 ? "Tailwind" : "Neutral"} · ${sim.windMin >= 0 ? "+" : "−"}${r0(Math.abs(sim.windMin))} min vs still air`],
     ["gust", "Strongest gust", `${r0(maxOf(S, "gust"))} <small>km/h</small>`, `Max sustained ${r0(maxOf(S, "ws"))} km/h at 10 m`],
-    ["drop", "Rain", `${r0(maxPop)} <small>% max</small>`, rain > 0.05 ? `~${r1(rain)} mm on the way` : "Dry forecast"],
+    ["drop", "Rain", lvl[1] === "dry" ? `Dry` : lvl[2].replace(" rain", "") + ` <small>rain</small>`,
+      lvl[1] === "dry" ? `${r0(maxPop)}% max chance, no rain amount forecast` : `up to ${r1(peak)} mm/h · ~${r1(rain)} mm total · ${r0(maxPop)}% max chance`],
     ["shield", ...conf],
     ["sun", "Sun & air", `UV ${r0(maxOf(S, "uv"))}`, `${uvLevel(maxOf(S, "uv"))} UV · ${airTile()}`]
   ];
@@ -78,7 +79,7 @@ export function renderReadout() {
       <dt>Wind</dt><dd><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)} ${r0(s.ws)} km/h from ${compass(s.wdir)}</span>, gusts ${r0(s.gust)}</dd>
       <dt>For you</dt><dd>${windLabel(s)} <span class="sub">heading ${compass(s.brg)}</span></dd>
       <dt>Speed here</dt><dd>${r1(s.spd)} km/h <span class="sub">(${r1(s.spd0)} in still air)</span></dd>
-      <dt>Rain</dt><dd>${r0(s.pop)}% chance${s.precip > 0.05 ? `, ${r1(s.precip)} mm/h` : ""}${e && e.rain != null ? ` <span class="sub">· ${r0(e.rain)}% of members wet</span>` : ""}</dd>
+      <dt>Rain</dt><dd>${r0(s.pop)}% chance${s.precip >= 0.1 ? ` · ${rainLevel(s.precip)[2].toLowerCase()}, ${r1(s.precip)} mm/h` : ", no rain amount"}${e && e.rain != null ? ` <span class="sub">· ${r0(e.rain)}% of members wet</span>` : ""}</dd>
       <dt>Sky</dt><dd>${r0(s.cloud)}% cloud · ${r0(s.rh)}% humidity</dd>
       <dt>Sun &amp; air</dt><dd>UV ${r1(s.uv)}${a ? ` · AQI ${r0(a.aqi)} <span class="sub">${aqiLevel(a.aqi).toLowerCase()}</span>` : ""}${pol ? ` · ${pol.name} pollen ${pol.v >= pol.hi ? "high" : "moderate"}` : ""}</dd>
     </dl>`;
@@ -103,8 +104,14 @@ export function renderNotes() {
   else if (lh > 4) notes.push(["warn", `Second half is into the wind (≈${r0(lh)} km/h). Save something for it.`]);
   const gusty = S.filter(s => s.gust >= 45);
   if (gusty.length) notes.push(["bad", `Gusts up to ${r0(Math.max(...gusty.map(s => s.gust)))} km/h from km ${r0(gusty[0].km)}. Careful on exposed descents and with deep-section wheels.`]);
-  const wet = S.find(s => s.pop >= 50 || s.precip >= 0.3);
-  if (wet) notes.push(["bad", `Rain likely from around km ${r0(wet.km)} (${fmtTime(wet.eta)}, ${r0(wet.pop)}% chance). Pack a rain jacket.`]);
+  // rain: how much, not just how likely
+  const wetS = S.filter(s => s.precip >= 0.1), likely = S.find(s => s.pop >= 50);
+  if (wetS.length) {
+    const top = wetS.reduce((a, b) => b.precip > a.precip ? b : a), [, key, label] = rainLevel(top.precip);
+    const total = S.reduce((a, s) => a + s.precip * s.dt / 3600, 0);
+    const advice = { drizzle: "A light jacket or gilet will do.", light: "Pack a rain jacket.", moderate: "Full rain jacket and overshoes; expect wet, slippery roads.", heavy: "Consider moving the ride: heavy rain cuts grip and visibility.", violent: "Don't ride in this if you can avoid it." }[key];
+    notes.push([key === "drizzle" ? "warn" : "bad", `${label} from around km ${r0(wetS[0].km)} (${fmtTime(wetS[0].eta)}), heaviest near km ${r0(top.km)} at ${r1(top.precip)} mm/h; about ${r1(total)} mm over the ride. ${advice}`]);
+  } else if (likely) notes.push(["warn", `Showers possible from around km ${r0(likely.km)} (${r0(likely.pop)}% chance), though the forecast shows little actual rain. A packable jacket is worth it.`]);
   else if (maxOf(S, "pop") >= 25) notes.push(["warn", `Some chance of showers (up to ${r0(maxOf(S, "pop"))}%). A packable jacket is worth it.`]);
   else notes.push(["good", "Dry ride expected."]);
   if (maxT >= 30) notes.push(["warn", `Hot: up to ${r0(maxT)} °C. Carry extra bottles and plan a refill.`]);
@@ -151,7 +158,7 @@ export function renderTable() {
       <td data-label="Wind (10 m)">${r0(s.ws)} km/h</td><td data-label="Gusts">${r0(s.gust)}</td>
       <td data-label="From"><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)}${compass(s.wdir)}</span></td>
       <td data-label="For you">${windLabel(s)}</td>
-      <td data-label="Rain"><span class="bar" style="width:${Math.max(2, s.pop * 0.4)}px"></span>${r0(s.pop)}%${s.precip > 0.05 ? ` · ${r1(s.precip)} mm` : ""}</td>
+      <td data-label="Rain"><span class="bar" style="width:${Math.max(2, s.pop * 0.4)}px"></span>${r0(s.pop)}%${s.precip >= 0.1 ? ` · ${rainLevel(s.precip)[1]} ${r1(s.precip)} mm/h` : ""}</td>
       <td data-label="Cloud">${r0(s.cloud)}%</td><td data-label="Humidity">${r0(s.rh)}%</td><td data-label="UV">${r0(s.uv)}</td><td data-label="AQI">${state.air && state.air[k] ? r0(state.air[k].aqi) : "—"}</td><td data-label="Elev.">${state.track.hasEle ? r0(s.ele) + " m" : "—"}</td></tr>`;
   }).join("");
   [...$("#rows").children].forEach((row, i) => {
