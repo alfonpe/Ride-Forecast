@@ -134,6 +134,34 @@ function nearestBaseIdx(latlng) {
   return { i: best, metres: Math.sqrt(bd) * 111195 };
 }
 
+/* ---------- route name: editable, remembered per route on this device ---------- */
+const routeKey = tr => { const a = tr.pts[0], b = tr.pts[tr.pts.length - 1], f = v => v.toFixed(4); return `${f(a.lat)},${f(a.lon)}|${f(b.lat)},${f(b.lon)}|${Math.round(tr.total / 100)}`; };
+function savedName(tr) {
+  try { return (JSON.parse(localStorage.getItem("rf-names") || "{}"))[routeKey(tr)] || ""; } catch (e) { return ""; }
+}
+function renameRoute(name) {
+  name = name.replace(/\s+/g, " ").trim().slice(0, 80);
+  if (!name || name === state.name || !state.baseTrack) return;
+  state.name = name;
+  try { const all = JSON.parse(localStorage.getItem("rf-names") || "{}"); all[routeKey(state.baseTrack)] = name; localStorage.setItem("rf-names", JSON.stringify(all)); } catch (e) { /* not remembered */ }
+  renderDirection(); // refreshes the name shown in the top bar
+  state.shareUrl = null;
+  shareURL().then(u => { state.shareUrl = u; }).catch(() => {});
+}
+function editName() {
+  const btn = $("#nameBtn"), inp = $("#nameInput");
+  inp.value = state.name || ""; btn.hidden = true; inp.hidden = false; inp.focus(); inp.select();
+}
+function endEditName(save) {
+  const btn = $("#nameBtn"), inp = $("#nameInput");
+  if (inp.hidden) return;
+  if (save) renameRoute(inp.value);
+  inp.hidden = true; btn.hidden = false;
+}
+$("#nameBtn").addEventListener("click", editName);
+$("#nameInput").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); endEditName(true); } else if (e.key === "Escape") endEditName(false); });
+$("#nameInput").addEventListener("blur", () => endEditName(true));
+
 /* ---------- shared ride plans ---------- */
 async function openShared() {
   let plan;
@@ -154,7 +182,7 @@ async function openShared() {
   state.routes = [plan.route];
   $("#trackField").hidden = true;
   showSharedBanner(plan);
-  useRoute(plan.route, "Shared link", plan.tz);
+  useRoute(plan.route, "Shared link", plan.tz, { keepName: true }); // the sender's name for the ride
   return true;
 }
 function showSharedBanner(plan) {
@@ -170,13 +198,13 @@ function showSharedBanner(plan) {
 }
 
 /* ---------- loading routes ---------- */
-async function useRoute(route, label, knownTz) {
+async function useRoute(route, label, knownTz, { keepName = false } = {}) {
   const id = ++loadSeq;
   let tr;
   try { tr = buildTrack(route.pts); } catch (e) { setStatus(e.message, true); return; }
-  state.track = state.baseTrack = tr; state.name = route.name; state.base = null;
+  state.track = state.baseTrack = tr; state.name = (!keepName && savedName(tr)) || route.name; state.base = null;
   state.orient = { s: 0, rev: false }; state.pickingStart = false; state.altCache = null; $("#map").classList.remove("picking");
-  $("#routeName").textContent = route.name || "Route";
+  $("#routeName").textContent = state.name || "Route";
   if (label) $("#fileLabel").textContent = label;
   setStatus("Preparing the route…");
   const [tz] = await Promise.all([
@@ -186,9 +214,11 @@ async function useRoute(route, label, knownTz) {
   if (id !== loadSeq) return;
   zone.name = tz; showTZ();
   state.poisRaw = state.pois = undefined;
-  fetchPOIs(tr.pts).then(list => {
+  state.places = null;
+  fetchPOIs(tr.pts).then(res => {
     if (id !== loadSeq) return;
-    state.poisRaw = list; state.pois = placePOIs(list, state.track);
+    state.poisRaw = res ? res.pois : null; state.pois = placePOIs(state.poisRaw, state.track);
+    state.places = res && { places: res.places, summits: res.summits };
     if (state.samples) { drawMap(false); renderNotes(); renderTable(); }
   });
   $("#eleHint").textContent = `${r1(tr.total / 1000)} km · ` + (tr.eleSrc === "file" ? "elevation from file" : tr.eleSrc === "dem" ? "elevation from terrain model" : "no elevation available (flat pacing)");
@@ -341,24 +371,36 @@ $("#share").addEventListener("click", async () => {
 // (Each action is its own tap, so the share sheet's "must come from a gesture" rule always holds.)
 let card = null;
 function hideImage() { $("#imgView").hidden = true; if (card) URL.revokeObjectURL(card.url); card = null; }
-$("#shareImg").addEventListener("click", () => {
-  if (!state.samples) return;
+function drawPreview() {
   const canvas = drawCard(), slug = (state.name || "ride").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "ride";
   const dataUrl = canvas.toDataURL("image/png"), file = cardFile(dataUrl, `ride-plan-${slug}.png`);
   if (card) URL.revokeObjectURL(card.url);
   card = { file, url: URL.createObjectURL(file), text: `Ride plan: ${planSummary()}` + (state.shareUrl ? `\n${state.shareUrl}` : "") };
+  const v = $("#imgView"), dl = v.querySelector('[data-act="download"]');
+  v.querySelector("img").src = dataUrl;
+  dl.href = card.url; dl.setAttribute("download", file.name);
+  return file;
+}
+$("#shareImg").addEventListener("click", () => {
+  if (!state.samples) return;
+  const file = drawPreview();
   let canFiles = false;
   try { canFiles = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { /* unsupported */ }
   const canCopy = !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem), phone = matchMedia("(pointer: coarse)").matches;
   const v = $("#imgView"), act = n => v.querySelector(`[data-act="${n}"]`);
-  v.querySelector("img").src = dataUrl;
   act("share").hidden = !canFiles;
   act("copy").hidden = !canCopy || phone;
   act("download").hidden = phone && canFiles;
-  act("download").href = card.url; act("download").setAttribute("download", file.name);
+  $("#cardTitle").value = state.name || "";
   $("#imgHint").textContent = canFiles ? "Share it to a chat, or save it." : phone ? "Press and hold the image to save or share it." : "Copy it and paste into a chat (e.g. WhatsApp Web), or download it.";
   v.hidden = false;
   (canFiles ? act("share") : v.querySelector("[data-close]")).focus();
+});
+// retitling in the preview renames the route everywhere and redraws the picture
+let titleTimer = 0;
+$("#cardTitle").addEventListener("input", e => {
+  clearTimeout(titleTimer);
+  titleTimer = setTimeout(() => { renameRoute(e.target.value); if (card) drawPreview(); }, 250);
 });
 $("#imgView").addEventListener("click", e => {
   if (e.target === e.currentTarget || e.target.closest("[data-close]")) { hideImage(); return; }

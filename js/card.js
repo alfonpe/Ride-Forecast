@@ -1,4 +1,6 @@
+import { compass } from "./geo.js";
 import { HAZ } from "./hazards.js";
+import { pickLabels } from "./labels.js";
 import { waterGap } from "./pois.js";
 import { catColor, hazWhere } from "./render.js";
 import { state } from "./state.js";
@@ -43,38 +45,73 @@ export function drawCard() {
   g.fillStyle = muted; g.font = `500 30px ${BODY}`;
   g.fillText(`${fmtDay(state.startMs)} · ${fmtTime(state.startMs)} → ${fmtTime(state.endMs)} · ${r1(tr.total / 1000)} km${tr.hasEle ? ` · ${r0(tr.gain)} m up` : ""}`, PAD, y);
 
-  // route outline, coloured by the wind you get on each stretch
-  const box = { x: PAD, y: y + 30, w: W - 2 * PAD, h: 430 };
+  // route outline: colour = head/cross/tailwind, thickness = how strong the wind is there
+  const box = { x: PAD, y: y + 30, w: W - 2 * PAD, h: 480 };
+  const labels = pickLabels(tr, state.places ? state.places.places : [], state.places ? state.places.summits : []);
   const lat0 = rad(tr.pts[0].lat), kx = Math.cos(lat0);
   const xs = tr.pts.map(p => p.lon * kx), ys = tr.pts.map(p => p.lat);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const sc = Math.min((box.w - 40) / ((x1 - x0) || 1e-6), (box.h - 40) / ((y1 - y0) || 1e-6));
-  const ox = box.x + (box.w - (x1 - x0) * sc) / 2, oy = box.y + (box.h + (y1 - y0) * sc) / 2;
-  const P = i => [ox + (xs[i] - x0) * sc, oy - (ys[i] - y0) * sc];
-  g.fillStyle = css("--surface-2"); g.beginPath(); g.roundRect(box.x, box.y, box.w, box.h, 24); g.fill();
+  // the frame also takes in the labelled towns, which can sit a few km off the route
+  const allX = [...xs, ...labels.map(l => l.lon * kx)], allY = [...ys, ...labels.map(l => l.lat)];
+  const x0 = Math.min(...allX), x1 = Math.max(...allX), y0 = Math.min(...allY), y1 = Math.max(...allY);
+  const inner = { l: 36, r: 112, t: 36, b: 64 }; // room for the wind badge (top right) and the key (bottom)
+  const sc = Math.min((box.w - inner.l - inner.r) / ((x1 - x0) || 1e-6), (box.h - inner.t - inner.b) / ((y1 - y0) || 1e-6));
+  const ox = box.x + inner.l + (box.w - inner.l - inner.r - (x1 - x0) * sc) / 2, oy = box.y + inner.t + (box.h - inner.t - inner.b + (y1 - y0) * sc) / 2;
+  const XY = (lat, lon) => [ox + (lon * kx - x0) * sc, oy - (lat - y0) * sc];
+  const P = i => XY(tr.pts[i].lat, tr.pts[i].lon);
+  const bg2 = css("--surface-2");
+  g.fillStyle = bg2; g.beginPath(); g.roundRect(box.x, box.y, box.w, box.h, 24); g.fill();
   g.lineCap = "round"; g.lineJoin = "round";
-  g.strokeStyle = "rgba(0,0,0,.18)"; g.lineWidth = 16; g.beginPath(); tr.pts.forEach((_, i) => { const [a, b] = P(i); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke();
-  g.lineWidth = 9;
-  for (let k = 0; k < S.length - 1; k++) {
-    g.strokeStyle = catColor(S[k].cat); g.beginPath();
-    for (let i = S[k].i; i <= Math.min(S[k + 1].i + 1, tr.pts.length - 1); i++) { const [a, b] = P(i); i === S[k].i ? g.moveTo(a, b) : g.lineTo(a, b); }
-    g.stroke();
+  const width = s => 3 + Math.min(Math.max(s.ws, 0), 40) / 40 * 19; // 3 px when calm … 22 px at 40+ km/h
+  const seg = (k, fn) => { g.beginPath(); for (let i = S[k].i; i <= Math.min(S[k + 1].i + 1, tr.pts.length - 1); i++) { const [a, b] = P(i); i === S[k].i ? g.moveTo(a, b) : g.lineTo(a, b); } fn(); };
+  for (let k = 0; k < S.length - 1; k++) seg(k, () => { g.strokeStyle = "rgba(0,0,0,.16)"; g.lineWidth = width(S[k]) + 6; g.stroke(); });
+  for (let k = 0; k < S.length - 1; k++) seg(k, () => { g.strokeStyle = catColor(S[k].cat); g.lineWidth = width(S[k]); g.stroke(); });
+
+  // wind badge: the overall direction (averaged as vectors) and the speed range along the ride
+  const u = S.reduce((a, s) => a + s.ws * Math.sin(rad(s.wdir)), 0), v = S.reduce((a, s) => a + s.ws * Math.cos(rad(s.wdir)), 0);
+  const from = (Math.atan2(u, v) * 180 / Math.PI + 360) % 360, cx = box.x + box.w - 72, cy = box.y + 70;
+  g.fillStyle = surface; g.beginPath(); g.arc(cx, cy, 38, 0, 7); g.fill();
+  g.save(); g.translate(cx, cy); g.rotate(rad(from + 180)); g.fillStyle = ink;
+  g.beginPath(); g.moveTo(0, -24); g.lineTo(12, -2); g.lineTo(4, -2); g.lineTo(4, 22); g.lineTo(-4, 22); g.lineTo(-4, -2); g.lineTo(-12, -2); g.closePath(); g.fill(); g.restore();
+  g.textAlign = "center"; g.fillStyle = ink; g.font = `600 22px ${BODY}`;
+  g.fillText(`from ${compass(from)}`, cx, cy + 66);
+  g.fillStyle = muted; g.font = `500 20px ${BODY}`; g.fillText(`${r0(minOf(S, "ws"))}–${r0(maxOf(S, "ws"))} km/h`, cx, cy + 92);
+  g.textAlign = "left";
+
+  // reference labels: towns, the furthest point, the high point; moved or skipped if they'd overlap
+  const taken = [[cx - 70, cy - 42, 140, 145], [box.x, box.y + box.h - 52, box.w, 52]];
+  const free = ([x, yy, w, h]) => x >= box.x + 8 && x + w <= box.x + box.w - 8 && yy >= box.y + 8 && yy + h <= box.y + box.h - 8 &&
+    !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h);
+  g.font = `600 23px ${BODY}`;
+  for (const l of labels) {
+    const [px, py] = XY(l.lat, l.lon), tw = g.measureText(l.text).width;
+    const spot = [[px + 14, py - 12], [px - 14 - tw, py - 12], [px - tw / 2, py - 40], [px - tw / 2, py + 14]]
+      .map(([x, yy]) => [x, yy, tw, 26]).find(free);
+    if (!spot) continue;
+    taken.push(spot);
+    g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 3;
+    g.beginPath();
+    if (l.type === "high") { g.moveTo(px, py - 9); g.lineTo(px + 9, py + 7); g.lineTo(px - 9, py + 7); g.closePath(); } else g.arc(px, py, 6, 0, 7);
+    g.fill(); g.stroke();
+    g.lineWidth = 6; g.lineJoin = "round"; g.strokeText(l.text, spot[0], spot[1] + 20); g.fillText(l.text, spot[0], spot[1] + 20);
   }
+
   const dot = (i, col, label) => {
     const [a, b] = P(i); g.fillStyle = col; g.beginPath(); g.arc(a, b, 17, 0, 7); g.fill();
     g.strokeStyle = "#fff"; g.lineWidth = 4; g.stroke(); g.fillStyle = "#fff"; g.font = `700 18px ${FONT}`; g.textAlign = "center"; g.fillText(label, a, b + 6); g.textAlign = "left";
   };
   dot(tr.pts.length - 1, css("--head"), "F"); dot(0, css("--tail"), "S");
-  // key
+  // key: colours, and thickness for strength
   g.font = `500 22px ${BODY}`; let kx2 = box.x + 22;
   for (const [cat, lbl] of [["head", "headwind"], ["cross", "crosswind"], ["tail", "tailwind"]]) {
-    g.fillStyle = catColor(cat); g.fillRect(kx2, box.y + box.h - 34, 22, 8); g.fillStyle = muted; g.fillText(lbl, kx2 + 30, box.y + box.h - 24); kx2 += g.measureText(lbl).width + 64;
+    g.fillStyle = catColor(cat); g.fillRect(kx2, box.y + box.h - 34, 22, 8); g.fillStyle = muted; g.fillText(lbl, kx2 + 30, box.y + box.h - 24); kx2 += g.measureText(lbl).width + 56;
   }
+  g.fillStyle = muted; g.fillRect(kx2, box.y + box.h - 33, 26, 4); g.fillRect(kx2 + 34, box.y + box.h - 37, 26, 14);
+  g.fillText("calm → strong", kx2 + 70, box.y + box.h - 24);
 
   // elevation profile
   y = box.y + box.h + 26;
   if (tr.hasEle) {
-    const eh = 96, emin = Math.min(...tr.ele), emax = Math.max(...tr.ele), ex = i => PAD + tr.cum[i] / tr.total * (W - 2 * PAD), ey = i => y + eh - (tr.ele[i] - emin) / ((emax - emin) || 1) * eh;
+    const eh = 76, emin = Math.min(...tr.ele), emax = Math.max(...tr.ele), ex = i => PAD + tr.cum[i] / tr.total * (W - 2 * PAD), ey = i => y + eh - (tr.ele[i] - emin) / ((emax - emin) || 1) * eh;
     g.fillStyle = css("--elev"); g.beginPath(); g.moveTo(PAD, y + eh);
     for (let i = 0; i < tr.pts.length; i += Math.max(1, Math.floor(tr.pts.length / 600))) g.lineTo(ex(i), ey(i));
     g.lineTo(W - PAD, y + eh); g.closePath(); g.fill();
@@ -93,7 +130,7 @@ export function drawCard() {
     ["Gusts", `${r0(maxOf(S, "gust"))} km/h`, "strongest"],
     water ? ["Water", water.len > 0 ? `${r0(water.len)} km` : "—", "longest stretch without"] : ["Finish", fmtTime(state.endMs), fmtDay(state.endMs)]
   ];
-  const tw = (W - 2 * PAD - 2 * 20) / 3, th = 132;
+  const tw = (W - 2 * PAD - 2 * 20) / 3, th = 124;
   tiles.forEach(([l, v, d], k) => {
     const tx = PAD + (k % 3) * (tw + 20), ty = y + Math.floor(k / 3) * (th + 20);
     g.fillStyle = css("--surface-2"); g.beginPath(); g.roundRect(tx, ty, tw, th, 20); g.fill();

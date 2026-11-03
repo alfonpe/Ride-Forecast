@@ -17,13 +17,16 @@ export function poiKind(t = {}) {
   return null;
 }
 
-// the route as an Overpass "around" line, simplified until it has at most ~350 vertices
+// One query for everything: water/cafés/shops within `radius` of the route line (simplified to ≤ ~350 vertices),
+// named peaks and passes right on it (to name the high point), and towns within 10 km (as references on the share card).
 export function overpassQuery(pts, radius = 150) {
   const flat = pts.map(p => ({ lat: p.lat, lon: p.lon, ele: 0 }));
-  let tol = 30, line = simplify(flat, tol, 1e9);
-  while (line.length > 350) { tol *= 1.6; line = simplify(flat, tol, 1e9); }
-  return `[out:json][timeout:25];nwr(around:${radius},${line.map(p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(",")})` +
-    `[~"^(amenity|shop|man_made)$"~"^(drinking_water|water_point|fountain|water_tap|cafe|bakery|convenience|fuel)$"];out center tags qt;`;
+  const line = (tol, max) => { let l = simplify(flat, tol, 1e9); while (l.length > max) { tol *= 1.6; l = simplify(flat, tol, 1e9); } return l.map(p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(","); };
+  const near = line(30, 350), wide = line(150, 120);
+  return `[out:json][timeout:25];(nwr(around:${radius},${near})` +
+    `[~"^(amenity|shop|man_made)$"~"^(drinking_water|water_point|fountain|water_tap|cafe|bakery|convenience|fuel)$"];` +
+    `node(around:400,${near})[natural~"^(peak|saddle)$"][name];node(around:400,${near})[mountain_pass=yes][name];` +
+    `node(around:10000,${wide})[place~"^(city|town|village)$"][name];);out center tags qt;`;
 }
 
 export function parsePOIs(elements) {
@@ -33,6 +36,19 @@ export function parsePOIs(elements) {
   }).filter(Boolean);
 }
 
+// towns (with population where mapped) and named summits/passes, for the share card's reference labels
+export function parseOverpass(elements) {
+  const pos = e => ({ lat: e.lat ?? (e.center && e.center.lat), lon: e.lon ?? (e.center && e.center.lon) });
+  const places = [], summits = [];
+  for (const e of elements) {
+    const t = e.tags || {}, p = pos(e);
+    if (!t.name || !isFinite(p.lat) || !isFinite(p.lon)) continue;
+    if (/^(city|town|village)$/.test(t.place)) places.push({ name: t.name, place: t.place, pop: parseInt(String(t.population || "").replace(/\D/g, ""), 10) || null, ...p });
+    else if (/^(peak|saddle)$/.test(t.natural) || t.mountain_pass === "yes") summits.push({ name: t.name, ele: parseFloat(t.ele) || null, ...p });
+  }
+  return { pois: parsePOIs(elements), places, summits };
+}
+
 export async function fetchPOIs(pts) {
   const body = "data=" + encodeURIComponent(overpassQuery(pts));
   for (const url of OVERPASS) {
@@ -40,7 +56,7 @@ export async function fetchPOIs(pts) {
     try {
       // form-encoded POST is a "simple" request: no CORS preflight
       const r = await fetch(url, { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: ctl.signal });
-      if (r.ok) return parsePOIs((await r.json()).elements || []);
+      if (r.ok) return parseOverpass((await r.json()).elements || []);
     } catch (e) { /* busy or offline: try the next server */ } finally { clearTimeout(timer); }
   }
   return null;

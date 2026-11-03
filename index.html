@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="styles.css?v=44d1bd6c81">
-<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=44d1bd6c81","./js/card.js":"./js/card.js?v=44d1bd6c81","./js/charts.js":"./js/charts.js?v=44d1bd6c81","./js/demo.js":"./js/demo.js?v=44d1bd6c81","./js/files.js":"./js/files.js?v=44d1bd6c81","./js/geo.js":"./js/geo.js?v=44d1bd6c81","./js/hazards.js":"./js/hazards.js?v=44d1bd6c81","./js/hover.js":"./js/hover.js?v=44d1bd6c81","./js/icons.js":"./js/icons.js?v=44d1bd6c81","./js/links.js":"./js/links.js?v=44d1bd6c81","./js/main.js":"./js/main.js?v=44d1bd6c81","./js/map.js":"./js/map.js?v=44d1bd6c81","./js/net.js":"./js/net.js?v=44d1bd6c81","./js/orient.js":"./js/orient.js?v=44d1bd6c81","./js/pacing.js":"./js/pacing.js?v=44d1bd6c81","./js/pois.js":"./js/pois.js?v=44d1bd6c81","./js/render.js":"./js/render.js?v=44d1bd6c81","./js/share.js":"./js/share.js?v=44d1bd6c81","./js/state.js":"./js/state.js?v=44d1bd6c81","./js/time.js":"./js/time.js?v=44d1bd6c81","./js/util.js":"./js/util.js?v=44d1bd6c81","./js/weather.js":"./js/weather.js?v=44d1bd6c81"}}</script><!-- version:end -->
+<link rel="stylesheet" href="styles.css?v=aff4cc0485">
+<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=aff4cc0485","./js/card.js":"./js/card.js?v=aff4cc0485","./js/charts.js":"./js/charts.js?v=aff4cc0485","./js/demo.js":"./js/demo.js?v=aff4cc0485","./js/files.js":"./js/files.js?v=aff4cc0485","./js/geo.js":"./js/geo.js?v=aff4cc0485","./js/hazards.js":"./js/hazards.js?v=aff4cc0485","./js/hover.js":"./js/hover.js?v=aff4cc0485","./js/icons.js":"./js/icons.js?v=aff4cc0485","./js/labels.js":"./js/labels.js?v=aff4cc0485","./js/links.js":"./js/links.js?v=aff4cc0485","./js/main.js":"./js/main.js?v=aff4cc0485","./js/map.js":"./js/map.js?v=aff4cc0485","./js/net.js":"./js/net.js?v=aff4cc0485","./js/orient.js":"./js/orient.js?v=aff4cc0485","./js/pacing.js":"./js/pacing.js?v=aff4cc0485","./js/pois.js":"./js/pois.js?v=aff4cc0485","./js/render.js":"./js/render.js?v=aff4cc0485","./js/share.js":"./js/share.js?v=aff4cc0485","./js/state.js":"./js/state.js?v=aff4cc0485","./js/time.js":"./js/time.js?v=aff4cc0485","./js/util.js":"./js/util.js?v=aff4cc0485","./js/weather.js":"./js/weather.js?v=aff4cc0485"}}</script><!-- version:end -->
 </head>
 <body>
 <div class="wrap">
@@ -18,7 +18,8 @@
       <div class="mark" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c3 0 3-5 7-5s3-5 7-5"/><circle cx="3" cy="15" r="1.6" fill="currentColor"/><circle cx="17" cy="5" r="1.6" fill="currentColor"/></svg></div>
       <div style="min-width:0"><h1>Ride Forecast</h1><div class="sub">Weather along your route, at the moment you ride through it</div></div>
     </div>
-    <div class="pill" title="Route"><span class="dot"></span><span id="routeName">Demo route</span></div>
+    <button class="pill pill-edit" id="nameBtn" type="button" title="Rename this route"><span class="dot"></span><span id="routeName">Demo route</span><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3z"/></svg></button>
+    <input class="pill name-input" id="nameInput" type="text" maxlength="80" aria-label="Route name" hidden>
     <div class="pill" id="tzPill" title="Times are shown in the route's local time zone"><svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5V10l3 2"/></svg><span id="tzName">—</span></div>
     <button class="btn" id="share" type="button"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12l4-4M7 9.5l-2 2a3 3 0 0 0 4.2 4.2l2-2M13 10.5l2-2A3 3 0 0 0 10.8 4.3l-2 2"/></svg>Share link</button>
     <button class="btn" id="shareImg" type="button"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="8" cy="9" r="1.6"/><path d="M17 13l-4-4-7 7"/></svg>Share image</button>
@@ -75,7 +76,9 @@
     <button class="go" id="go" type="submit">Get forecast</button>
   </form>
   <div class="imgview" id="imgView" hidden role="dialog" aria-modal="true" aria-label="Ride plan image">
-    <div class="imgview-box"><img alt="Ride plan summary"><p id="imgHint"></p>
+    <div class="imgview-box">
+      <label class="imgview-title"><span>Title</span><input id="cardTitle" type="text" maxlength="80"></label>
+      <img alt="Ride plan summary"><p id="imgHint"></p>
       <div class="imgview-actions">
         <button class="btn primary" type="button" data-act="share">Share…</button>
         <button class="btn" type="button" data-act="copy">Copy image</button>
@@ -191,6 +194,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script type="module" src="js/main.js?v=44d1bd6c81"></script>
+<script type="module" src="js/main.js?v=aff4cc0485"></script>
 </body>
 </html>
