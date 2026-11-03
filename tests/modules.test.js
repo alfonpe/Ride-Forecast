@@ -24,3 +24,9 @@ test("every imported name is exported by its module", () => {
   }
   assert.deepEqual(missing, []);
 });
+
+test("index.html has no duplicate element ids", () => {
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+  assert.deepEqual(ids.filter((id, i) => ids.indexOf(id) !== i), []);
+});

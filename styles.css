@@ -117,6 +117,10 @@ a.btn.primary{color:var(--accent-ink)}
 .imgview-box{display:grid;gap:10px;justify-items:center;max-width:min(520px,100%);margin:auto}
 .imgview img{max-width:100%;max-height:calc(100dvh - 190px);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.5);-webkit-touch-callout:default}
 .imgview p{margin:0;color:#fff;font-size:14px;text-align:center}
+.linkbox{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(520px,100%);justify-items:stretch}
+.linkbox p{color:var(--muted);text-align:left}
+.linkbox input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);font:500 15px var(--mono)}
+.linkbox .imgview-actions{justify-content:flex-start}
 .imgview-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .label-row{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
 .seg.mini button{padding:1px 7px;font-size:11px}
