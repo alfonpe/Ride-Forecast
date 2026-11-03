@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="styles.css?v=033ea8bdb3">
-<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=033ea8bdb3","./js/card.js":"./js/card.js?v=033ea8bdb3","./js/charts.js":"./js/charts.js?v=033ea8bdb3","./js/demo.js":"./js/demo.js?v=033ea8bdb3","./js/files.js":"./js/files.js?v=033ea8bdb3","./js/geo.js":"./js/geo.js?v=033ea8bdb3","./js/hazards.js":"./js/hazards.js?v=033ea8bdb3","./js/hover.js":"./js/hover.js?v=033ea8bdb3","./js/icons.js":"./js/icons.js?v=033ea8bdb3","./js/labels.js":"./js/labels.js?v=033ea8bdb3","./js/links.js":"./js/links.js?v=033ea8bdb3","./js/main.js":"./js/main.js?v=033ea8bdb3","./js/map.js":"./js/map.js?v=033ea8bdb3","./js/net.js":"./js/net.js?v=033ea8bdb3","./js/orient.js":"./js/orient.js?v=033ea8bdb3","./js/pacing.js":"./js/pacing.js?v=033ea8bdb3","./js/places.js":"./js/places.js?v=033ea8bdb3","./js/pois.js":"./js/pois.js?v=033ea8bdb3","./js/render.js":"./js/render.js?v=033ea8bdb3","./js/share.js":"./js/share.js?v=033ea8bdb3","./js/shortlink.js":"./js/shortlink.js?v=033ea8bdb3","./js/state.js":"./js/state.js?v=033ea8bdb3","./js/time.js":"./js/time.js?v=033ea8bdb3","./js/util.js":"./js/util.js?v=033ea8bdb3","./js/weather.js":"./js/weather.js?v=033ea8bdb3"}}</script><!-- version:end -->
+<link rel="stylesheet" href="styles.css?v=c5eb8b9098">
+<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=c5eb8b9098","./js/card.js":"./js/card.js?v=c5eb8b9098","./js/charts.js":"./js/charts.js?v=c5eb8b9098","./js/demo.js":"./js/demo.js?v=c5eb8b9098","./js/files.js":"./js/files.js?v=c5eb8b9098","./js/geo.js":"./js/geo.js?v=c5eb8b9098","./js/hazards.js":"./js/hazards.js?v=c5eb8b9098","./js/hover.js":"./js/hover.js?v=c5eb8b9098","./js/icons.js":"./js/icons.js?v=c5eb8b9098","./js/labels.js":"./js/labels.js?v=c5eb8b9098","./js/main.js":"./js/main.js?v=c5eb8b9098","./js/map.js":"./js/map.js?v=c5eb8b9098","./js/net.js":"./js/net.js?v=c5eb8b9098","./js/orient.js":"./js/orient.js?v=c5eb8b9098","./js/pacing.js":"./js/pacing.js?v=c5eb8b9098","./js/places.js":"./js/places.js?v=c5eb8b9098","./js/pois.js":"./js/pois.js?v=c5eb8b9098","./js/render.js":"./js/render.js?v=c5eb8b9098","./js/share.js":"./js/share.js?v=c5eb8b9098","./js/shortlink.js":"./js/shortlink.js?v=c5eb8b9098","./js/state.js":"./js/state.js?v=c5eb8b9098","./js/time.js":"./js/time.js?v=c5eb8b9098","./js/util.js":"./js/util.js?v=c5eb8b9098","./js/weather.js":"./js/weather.js?v=c5eb8b9098"}}</script><!-- version:end -->
 </head>
 <body>
 <div class="wrap">
@@ -35,11 +35,6 @@
         <input type="file" id="file" accept=".gpx,.tcx,.fit,.zip,.gz,application/gpx+xml,application/vnd.garmin.tcx+xml,application/xml,text/xml,application/zip">
       </label>
       <span class="hint" id="eleHint"></span>
-    </div>
-    <div class="field">
-      <label class="label" for="link">Garmin Connect link</label>
-      <input type="url" id="link" placeholder="connect.garmin.com/…/course/…" autocomplete="off" spellcheck="false">
-      <span class="hint" id="linkHint">paste a course or activity link</span>
     </div>
     <div class="field speed-field">
       <label class="label" for="speed">Speed, no wind (km/h)</label>
@@ -99,7 +94,6 @@
       </div></div>
   </div>
   <section class="panel import" id="sharedBanner" hidden aria-live="polite"></section>
-  <section class="panel import" id="importHelp" hidden aria-live="polite"></section>
   <div class="status" id="status" role="status"></div>
 
   <section class="summary" id="summary" aria-label="Ride summary"></section>
@@ -207,6 +201,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script type="module" src="js/main.js?v=033ea8bdb3"></script>
+<script type="module" src="js/main.js?v=c5eb8b9098"></script>
 </body>
 </html>

@@ -46,7 +46,7 @@ It writes a content hash into `index.html` so browsers load every file of the ne
 | `js/hazards.js` | Storms, ice, fog, crosswind, heat detection |
 | `js/best.js` | Best-time-to-leave scoring |
 | `js/map.js`, `js/charts.js`, `js/render.js`, `js/hover.js` | Map, charts, panels and hover sync |
-| `js/links.js`, `js/share.js`, `js/demo.js` | Garmin links, share links, demo route |
+| `js/share.js`, `js/shortlink.js`, `js/demo.js` | Share links, short links (is.gd), demo route |
 | `js/net.js`, `js/time.js`, `js/util.js`, `js/icons.js` | Fetching, time zones and formatting, helpers, icons |
 
 Data: [Open-Meteo](https://open-meteo.com/) (forecast, ECMWF ensemble, CAMS air quality, Copernicus DEM elevation). Map © OpenStreetMap contributors.

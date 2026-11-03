@@ -6,7 +6,6 @@ import { parseRouteFile, readRouteBytes, routesToGPX } from "./files.js";
 import { buildTrack, fetchElevation, locate, makeSamples, routeKey } from "./geo.js";
 import { detectHazards } from "./hazards.js";
 import { nearestSample, setHover } from "./hover.js";
-import { handleLink } from "./links.js";
 import { drawMap, initMap, map } from "./map.js";
 import { parseStops, riderFeels, simulate, startForArrival } from "./pacing.js";
 import { renderAll, renderDirection, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ, updateTimeHint } from "./render.js";
@@ -250,7 +249,6 @@ function useRoutes(routes, filename) {
   state.routes = routes;
   $("#trackSel").innerHTML = routes.map((r, k) => `<option value="${k}">${esc(r.name)} (${r.pts.length} pts)</option>`).join("");
   $("#trackField").hidden = routes.length < 2;
-  $("#importHelp").hidden = true;
   useRoute(routes[0], filename);
 }
 function rememberRoute(text, filename) {
@@ -317,14 +315,8 @@ document.addEventListener("drop", e => {
   if (e.target.closest("#drop")) return;
   e.preventDefault();
   const f = e.dataTransfer.files[0];
-  if (f) { openFile(f); return; }
-  // a link dragged in from a Garmin Connect tab
-  const url = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
-  if (url) { $("#link").value = url.trim(); handleLink(url); }
+  if (f) openFile(f);
 });
-$("#link").addEventListener("input", e => handleLink(e.target.value));
-$("#link").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); handleLink(e.target.value); } });
-$("#importHelp").addEventListener("click", e => { if (e.target.closest("[data-close]")) $("#importHelp").hidden = true; });
 $("#sharedBanner").addEventListener("click", e => { if (e.target.closest("[data-close]")) $("#sharedBanner").hidden = true; });
 
 $("#metric").addEventListener("click", e => {
