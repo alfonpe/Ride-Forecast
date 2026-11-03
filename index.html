@@ -19,7 +19,8 @@
     </div>
     <div class="pill" title="Route"><span class="dot"></span><span id="routeName">Demo route</span></div>
     <div class="pill" id="tzPill" title="Times are shown in the route's local time zone"><svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5V10l3 2"/></svg><span id="tzName">—</span></div>
-    <button class="btn" id="share" type="button"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12l4-4M7 9.5l-2 2a3 3 0 0 0 4.2 4.2l2-2M13 10.5l2-2A3 3 0 0 0 10.8 4.3l-2 2"/></svg>Copy share link</button>
+    <button class="btn" id="share" type="button"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12l4-4M7 9.5l-2 2a3 3 0 0 0 4.2 4.2l2-2M13 10.5l2-2A3 3 0 0 0 10.8 4.3l-2 2"/></svg>Share link</button>
+    <button class="btn" id="shareImg" type="button"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="8" cy="9" r="1.6"/><path d="M17 13l-4-4-7 7"/></svg>Share image</button>
     <button class="btn icon" id="theme" type="button" aria-label="Theme: auto"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg></button>
   </header>
 
@@ -44,7 +45,8 @@
       <span class="hint">flat, still-air average</span>
     </div>
     <div class="field">
-      <label class="label" for="start">Start time</label>
+      <div class="label-row"><label class="label" for="start" id="startLabel">Start time</label>
+        <span class="seg mini" id="timeMode" role="group" aria-label="Plan the ride by"><button type="button" data-mode="start" aria-pressed="true">Start at</button><button type="button" data-mode="arrive" aria-pressed="false">Home by</button></span></div>
       <input type="datetime-local" id="start">
       <span class="hint" id="tzHint">route local time</span>
     </div>
@@ -90,6 +92,12 @@
         </div>
       </div>
       <div id="map"></div>
+      <div class="dirbar" id="dirBar">
+        <button class="btn" type="button" data-act="reverse" aria-pressed="false">⇄ <span>Ride it the other way</span></button>
+        <button class="btn" type="button" data-act="pick" aria-pressed="false" hidden><span>Change start point</span></button>
+        <button class="btn" type="button" data-act="resetStart" hidden>Original start</button>
+        <span class="verdict"></span>
+      </div>
       <div class="scrub"><span>Start</span><input type="range" id="scrub" min="0" max="100" step="0.05" value="0" aria-label="Position along the route (km)"><span id="scrubKm" class="num">0 km</span></div>
       <div class="elev-box"><canvas id="cElev" aria-label="Elevation profile"></canvas></div>
       <div class="legend" id="legend"></div>

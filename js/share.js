@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { zone } from "./time.js";
+import { msToWall, zone } from "./time.js";
 import { $, rad } from "./util.js";
 
 /* ---------- share links: the whole ride plan in the URL hash ----------
@@ -108,7 +108,7 @@ export async function shareURL() {
   const tr = state.track;
   const pts = simplify(tr.pts.map((p, i) => ({ lat: p.lat, lon: p.lon, ele: tr.hasEle ? tr.ele[i] : null })));
   const p = new URLSearchParams({
-    v: 2, n: state.name, s: $("#speed").value, t: $("#start").value, h: $("#hills").checked ? 1 : 0,
+    v: 2, n: state.name, s: $("#speed").value, t: state.samples ? msToWall(state.startMs) : $("#start").value, h: $("#hills").checked ? 1 : 0,
     w: $("#wf").value, z: zone.name, m: state.metric
   });
   if ($("#stops").value.trim()) p.set("st", $("#stops").value.trim());

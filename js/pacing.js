@@ -65,3 +65,15 @@ export function riderFeels(T, air, apparent) {
   if (T <= 10) return Math.min(T, chill(T));
   return T + (chill(10) - 10) * (24 - T) / 14;
 }
+
+// "Home by": the start whose simulated ride ends at `target`. Ride time depends on when you leave
+// (the wind changes), so step the start by the miss until it lands within 15 s; 2–3 steps usually.
+export function startForArrival(target, durAt, guess) {
+  let ms = guess;
+  for (let k = 0; k < 8; k++) {
+    const miss = ms + durAt(ms) * 1000 - target;
+    if (Math.abs(miss) < 15e3) break;
+    ms -= miss;
+  }
+  return ms;
+}

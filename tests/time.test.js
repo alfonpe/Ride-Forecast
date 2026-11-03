@@ -20,3 +20,10 @@ test("fmtDur rounds minutes and never prints 60", () => {
   assert.equal(fmtDur(3599.9), "1h 00");
   assert.equal(fmtDur(0), "0h 00");
 });
+
+test("temperature ranges stay readable below zero", async () => {
+  const { span } = await import("../js/util.js");
+  assert.equal(span(4.4, 10.6), "4–11");
+  assert.equal(span(-5.2, 1), "−5 to 1");
+  assert.equal(span(-8, -2), "−8 to −2");
+});

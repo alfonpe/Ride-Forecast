@@ -33,7 +33,8 @@ export function thin(P, maxPts = 20000) {
   return out;
 }
 
-export function buildTrack(raw) {
+// opts.eleSrc / opts.smooth: used when re-orienting an already-built track, whose elevations are final
+export function buildTrack(raw, opts = {}) {
   const D = [raw[0]];
   for (let i = 1; i < raw.length; i++) if (hav(D[D.length - 1], raw[i]) > 1) D.push(raw[i]);
   if (D.length < 2) throw new Error("This route is too short to forecast.");
@@ -49,26 +50,28 @@ export function buildTrack(raw) {
     sinB[i] = Math.sin(b); cosB[i] = Math.cos(b);
   }
   const tr = { pts: P, cum, sinB, cosB, total: cum[n - 1], ele: new Float64Array(n), hasEle: false, eleSrc: null, gain: 0, loss: 0, time: null, spd: null };
-  if (P.filter(p => p.ele != null && isFinite(p.ele)).length > n * 0.8) setElevation(tr, P.map(p => p.ele), "file");
+  if (P.filter(p => p.ele != null && isFinite(p.ele)).length > n * 0.8) setElevation(tr, P.map(p => p.ele), opts.eleSrc || "file", opts.smooth !== false);
   return tr;
 }
 
-export function setElevation(tr, e, src) {
+export function setElevation(tr, e, src, smooth = true) {
   const n = tr.pts.length, cum = tr.cum;
   let last = e.find(v => v != null && isFinite(v));
   if (last == null) return;
   e = e.slice();
   for (let i = 0; i < n; i++) { if (e[i] == null || !isFinite(e[i])) e[i] = last; else last = e[i]; }
-  // smooth over a ±60 m distance window to tame GPS/DEM noise
-  const pre = new Float64Array(n + 1);
-  for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + e[i];
-  let lo = 0, hi = 0;
-  for (let i = 0; i < n; i++) {
-    while (cum[i] - cum[lo] > 60) lo++;
-    if (hi < i) hi = i;
-    while (hi + 1 < n && cum[hi + 1] - cum[i] <= 60) hi++;
-    tr.ele[i] = (pre[hi + 1] - pre[lo]) / (hi - lo + 1);
-  }
+  if (smooth) {
+    // smooth over a ±60 m distance window to tame GPS/DEM noise
+    const pre = new Float64Array(n + 1);
+    for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + e[i];
+    let lo = 0, hi = 0;
+    for (let i = 0; i < n; i++) {
+      while (cum[i] - cum[lo] > 60) lo++;
+      if (hi < i) hi = i;
+      while (hi + 1 < n && cum[hi + 1] - cum[i] <= 60) hi++;
+      tr.ele[i] = (pre[hi + 1] - pre[lo]) / (hi - lo + 1);
+    }
+  } else tr.ele.set(e);
   let ref = tr.ele[0], gain = 0, loss = 0;
   for (let i = 1; i < n; i++) {
     const d = tr.ele[i] - ref;

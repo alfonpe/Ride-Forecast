@@ -1,18 +1,27 @@
 import { renderBest, renderCharts } from "./charts.js";
 import { compass, locate } from "./geo.js";
 import { HAZ } from "./hazards.js";
+import { isLoop } from "./orient.js";
+import { waterGap } from "./pois.js";
 import { nearestSample, setHover } from "./hover.js";
 import { arrowSvg, icon, wmo } from "./icons.js";
 import { drawMap, map } from "./map.js";
 import { state } from "./state.js";
 import { DEVICE_TZ, fmtDay, fmtDur, fmtTime, zone } from "./time.js";
-import { $, DAY, css, maxOf, minOf, r0, r1, resetTokens } from "./util.js";
+import { $, DAY, css, maxOf, minOf, r0, r1, resetTokens, span } from "./util.js";
 import { aqiLevel, rainLevel, uvLevel } from "./weather.js";
 
 export function showTZ() {
   const abbr = new Intl.DateTimeFormat("en", { timeZone: zone.name, timeZoneName: "short" }).formatToParts(Date.now()).find(x => x.type === "timeZoneName");
   $("#tzName").textContent = zone.name.replace(/_/g, " ") + (abbr ? " · " + abbr.value : "");
-  $("#tzHint").textContent = zone.name === DEVICE_TZ ? "route local time (same as this device)" : `route local time · ${zone.name.split("/").pop().replace(/_/g, " ")}, not this device`;
+  state.tzText = zone.name === DEVICE_TZ ? "route local time (same as this device)" : `route local time · ${zone.name.split("/").pop().replace(/_/g, " ")}, not this device`;
+  updateTimeHint();
+}
+// in "Home by" mode the hint shows the start the app worked out
+export function updateTimeHint() {
+  const arrive = state.timeMode === "arrive";
+  $("#startLabel").textContent = arrive ? "Home by" : "Start time";
+  $("#tzHint").textContent = (arrive && state.samples ? `leave at ${fmtTime(state.startMs)} · ` : "") + state.tzText;
 }
 export const hazWhere = z => { const S = state.samples, a = S[z.k0], b = S[z.k1]; return z.k0 === z.k1 ? `around km ${r0(a.km)} (${fmtTime(a.eta)})` : `km ${r0(a.km)}–${r0(b.km)} (${fmtTime(a.eta)}–${fmtTime(b.eta)})`; };
 export function windLabel(s) {
@@ -40,7 +49,7 @@ export function renderSummary() {
   const tiles = [
     ["dist", "Distance", `${r1(tr.total / 1000)} <small>km</small>`, tr.hasEle ? `${r0(tr.gain)} m climbing${tr.eleSrc === "dem" ? " (terrain model)" : ""}` : "No elevation available"],
     ["clock", "Ride time", fmtDur(dur), `${fmtTime(state.startMs)} → ${fmtTime(state.endMs)}${sim.stopSec ? ` · ${r0(sim.stopSec / 60)} min stops` : ""}`],
-    ["therm", "On the bike", `${r0(minOf(S, "bike"))}–${r0(maxOf(S, "bike"))} <small>°C</small>`, `Air ${r0(minOf(S, "temp"))}–${r0(maxOf(S, "temp"))} °C`],
+    ["therm", "On the bike", `${span(minOf(S, "bike"), maxOf(S, "bike"))} <small>°C</small>`, `Air ${span(minOf(S, "temp"), maxOf(S, "temp"))} °C`],
     ["wind", "Net wind", `${avgHead >= 0 ? "+" : "−"}${r1(Math.abs(avgHead))} <small>km/h</small>`, `${avgHead >= 0.5 ? "Headwind" : avgHead <= -0.5 ? "Tailwind" : "Neutral"} · ${sim.windMin >= 0 ? "+" : "−"}${r0(Math.abs(sim.windMin))} min vs still air`],
     ["gust", "Strongest gust", `${r0(maxOf(S, "gust"))} <small>km/h</small>`, `Max sustained ${r0(maxOf(S, "ws"))} km/h at 10 m`],
     ["drop", "Rain", lvl[1] === "dry" ? `Dry` : lvl[2].replace(" rain", "") + ` <small>rain</small>`,
@@ -113,7 +122,10 @@ export function renderNotes() {
     notes.push([key === "drizzle" ? "warn" : "bad", `${label} from around km ${r0(wetS[0].km)} (${fmtTime(wetS[0].eta)}), heaviest near km ${r0(top.km)} at ${r1(top.precip)} mm/h; about ${r1(total)} mm over the ride. ${advice}`]);
   } else if (likely) notes.push(["warn", `Showers possible from around km ${r0(likely.km)} (${r0(likely.pop)}% chance), though the forecast shows little actual rain. A packable jacket is worth it.`]);
   else if (maxOf(S, "pop") >= 25) notes.push(["warn", `Some chance of showers (up to ${r0(maxOf(S, "pop"))}%). A packable jacket is worth it.`]);
-  else notes.push(["good", "Dry ride expected."]);
+  else {
+    const wz = state.hazards.find(z => z.type === "wet");
+    notes.push(wz ? ["warn", `No rain while you ride, but roads will still be wet from earlier rain ${hazWhere(wz)}. Easy on the corners.`] : ["good", "Dry ride expected."]);
+  }
   if (maxT >= 30) notes.push(["warn", `Hot: up to ${r0(maxT)} °C. Carry extra bottles and plan a refill.`]);
   // kit suggestion from the coldest on-bike temperature (wind chill at riding speed)
   let kit;
@@ -142,8 +154,21 @@ export function renderNotes() {
     if (hi.length) notes.push(["warn", `High ${hi.map(p => p.name).join(" and ")} pollen. If you get hay fever, take your antihistamine before you go.`]);
     else if (mid.length) notes.push(["info", `Moderate ${mid.map(p => p.name).join(", ")} pollen.`]);
   }
+  // drinking water and cafés along the way (OpenStreetMap)
+  if (state.pois) {
+    const W = state.pois.filter(p => p.kind === "water"), C = state.pois.filter(p => p.kind === "cafe");
+    const at = a => a.slice(0, 6).map(p => r0(p.km)).join(", ") + (a.length > 6 ? ` and ${a.length - 6} more` : "");
+    const clock = km => state.startMs + locate(tr, km * 1000).t * 1000;
+    if (W.length) {
+      const g = waterGap(W, tr.total / 1000), hours = (clock(g.to) - clock(g.from)) / 36e5;
+      const long = hours >= (maxT >= 25 ? 1.5 : 2.5);
+      notes.push([long ? "warn" : "info", `Drinking water at km ${at(W)}. Longest stretch without: km ${r0(g.from)}–${r0(g.to)} (${r0(g.len)} km, about ${fmtDur(hours * 3600)})${long ? "; carry enough for it or plan a café stop" : ""}.`]);
+    } else notes.push(["warn", "No drinking water mapped near the route; carry what you need or plan a café stop."]);
+    if (C.length) notes.push(["info", `Cafés and bakeries at km ${at(C)}.`]);
+  } else if (state.pois === null) notes.push(["info", "Couldn't load water and café locations from OpenStreetMap right now."]);
   if (zone.name !== DEVICE_TZ) notes.push(["info", `Times are local to the route (${zone.name.replace(/_/g, " ")}), not this device.`]);
   if (tr.eleSrc === "dem") notes.push(["info", "Your file had no elevation, so climbs come from a 90 m terrain model."]);
+  state.notes = notes; // the share card reuses them
   $("#notes").innerHTML = notes.map(([c, t]) => `<li class="${c}">${t}</li>`).join("");
 }
 
@@ -152,8 +177,9 @@ export function renderTable() {
   $("#spacingLabel").textContent = `every ${r1(S[1] ? S[1].km - S[0].km : 0)} km · ${fmtDay(state.startMs)} · times in ${zone.name.replace(/_/g, " ")}`;
   const stopAt = s => state.opts.stops.filter(st => nearestSample(st.km) === s);
   $("#rows").innerHTML = S.map((s, k) => {
-    const [lbl, ic] = wmo(s.code), st = stopAt(s);
-    return `<tr tabindex="0" aria-selected="false"><td class="mono lead" data-label="Km">${r1(s.km).toFixed(1)} km<span class="stopmark">${st.map(x => `· stop ${x.min}′`).join(" ")}</span></td><td data-label="Pass at">${multiDay ? fmtDay(s.eta) + " " : ""}${fmtTime(s.eta)}</td>
+    const [lbl, ic] = wmo(s.code), st = stopAt(s), here = (state.pois || []).filter(q => nearestSample(q.km) === s);
+    const kinds = [...new Set(here.map(q => ({ water: "water", cafe: "café", shop: "shop" })[q.kind]))];
+    return `<tr tabindex="0" aria-selected="false"><td class="mono lead" data-label="Km">${r1(s.km).toFixed(1)} km<span class="stopmark">${st.map(x => `· stop ${x.min}′`).join(" ")}${kinds.length ? ` · ${kinds.join(", ")}` : ""}</span></td><td data-label="Pass at">${multiDay ? fmtDay(s.eta) + " " : ""}${fmtTime(s.eta)}</td>
       <td data-label="Sky"><span class="wx">${icon(ic)}${lbl}</span></td><td data-label="Temp">${r1(s.temp)}°</td><td data-label="On bike">${r0(s.bike)}°</td>
       <td data-label="Wind (10 m)">${r0(s.ws)} km/h</td><td data-label="Gusts">${r0(s.gust)}</td>
       <td data-label="From"><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)}${compass(s.wdir)}</span></td>
@@ -171,9 +197,37 @@ export function renderTable() {
   });
 }
 
+// the bar under the map: reverse, change a loop's start, and how the other direction compares
+export function renderDirection() {
+  const c = state.dirCompare, o = state.orient, loop = state.baseTrack && isLoop(state.baseTrack);
+  let verdict = "";
+  if (c) {
+    const dMin = (c.alt.dur - c.cur.dur) / 60, dScore = c.alt.score - c.cur.score, why = [];
+    if (Math.abs(dMin) >= 2) why.push(`${r0(Math.abs(dMin))} min ${dMin < 0 ? "faster" : "slower"}`);
+    if (Math.abs(c.alt.wet - c.cur.wet) >= 5) why.push(c.alt.wet < c.cur.wet ? "drier" : "wetter");
+    if (Math.abs(c.alt.head - c.cur.head) >= 1) why.push(c.alt.head < c.cur.head ? "less headwind" : "more headwind");
+    if (Math.abs(c.alt.dark - c.cur.dark) >= 5) why.push(c.alt.dark < c.cur.dark ? "more daylight" : "more riding in the dark");
+    if (c.alt.minBike - c.cur.minBike >= 2) why.push("warmer"); else if (c.cur.minBike - c.alt.minBike >= 2) why.push("colder");
+    if (dScore <= -5) verdict = `<b>The other way round is better:</b> ${why.join(", ") || "slightly better overall"}.`;
+    else if (dScore >= 5) verdict = `<b>This direction is the better one.</b> The other way would be ${why.join(", ") || "slightly worse overall"}.`;
+    else verdict = `Both directions are about the same${Math.abs(dMin) >= 1 ? `; the other way is ${r0(Math.abs(dMin))} min ${dMin < 0 ? "faster" : "slower"}` : ""}.`;
+  }
+  // update the buttons in place: re-creating them mid-click (a re-run finishing between mouse-down and up) would swallow the click
+  const bar = $("#dirBar"), btn = act => bar.querySelector(`[data-act="${act}"]`);
+  btn("reverse").classList.toggle("better", !!c && c.alt.score - c.cur.score <= -5);
+  btn("reverse").setAttribute("aria-pressed", o.rev);
+  btn("reverse").querySelector("span").textContent = o.rev ? "Riding it reversed" : "Ride it the other way";
+  btn("pick").hidden = !loop;
+  btn("pick").setAttribute("aria-pressed", state.pickingStart);
+  btn("pick").querySelector("span").textContent = state.pickingStart ? "Tap the route where you'll start…" : "Change start point";
+  btn("resetStart").hidden = !(loop && o.s);
+  bar.querySelector(".verdict").innerHTML = verdict;
+  $("#routeName").textContent = (state.name || "Route") + (o.rev ? " (reversed)" : "") + (o.s ? " · new start" : "");
+}
+
 export function renderAll(fit) {
   resetTokens(); // theme may have changed since the last render
-  renderSummary(); renderHazards(); renderNotes(); drawMap(fit); renderCharts(); renderBest(); renderTable(); renderReadout();
+  renderSummary(); renderHazards(); renderNotes(); drawMap(fit); renderCharts(); renderBest(); renderTable(); renderReadout(); renderDirection();
   const sc = $("#scrub"); sc.max = r1(state.track.total / 1000);
 }
 

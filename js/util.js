@@ -21,3 +21,5 @@ export function alpha(c, a) {
   if (c.startsWith("#")) { const n = c.slice(1).match(/\w\w/g).map(h => parseInt(h, 16)); return `rgba(${n.join(",")},${a})`; }
   return c;
 }
+// "4–11" but "−5 to 1": a dash between negative numbers reads as a minus sign
+export const span = (a, b) => { const f = v => (v < 0 ? "−" : "") + Math.abs(Math.round(v)); return a < 0 || b < 0 ? `${f(a)} to ${f(b)}` : `${f(a)}–${f(b)}`; };

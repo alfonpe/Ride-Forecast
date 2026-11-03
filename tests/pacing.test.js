@@ -64,3 +64,22 @@ test("parseStops: separators and units", () => {
   assert.deepEqual(parseStops("30 km @ 15 min; 60:5", 1e6).stops.map(s => [s.km, s.min]), [[30, 15], [60, 5]]);
   assert.deepEqual(parseStops("", 1e6), { stops: [], bad: [] });
 });
+
+test("home-by: the solver finds the start that arrives on time", async () => {
+  const { startForArrival } = await import("../js/pacing.js");
+  const target = Date.UTC(2026, 5, 6, 12);
+  // ride time grows the later you leave (a building headwind): 2 h at 08:00 plus 6 min per hour later
+  const durAt = ms => 7200 + (ms - Date.UTC(2026, 5, 6, 8)) / 3.6e6 * 360;
+  const ms = startForArrival(target, durAt, target - 7200e3);
+  assert.ok(Math.abs(ms + durAt(ms) * 1000 - target) < 15e3);
+});
+
+test("home-by with real pacing and wind", async () => {
+  const { startForArrival } = await import("../js/pacing.js");
+  const tr = northTrack(40), S = makeSamples(tr), T0 = Date.UTC(2026, 5, 6, 0) / 1000;
+  // wind from the north strengthening through the morning
+  const locs = S.map(() => loc(T0, 48, { wind_speed_10m: i => 5 + i * 2, wind_direction_10m: 0 }));
+  const o = opts({}), target = Date.UTC(2026, 5, 6, 12), dur = ms => simulate(tr, S, locs, ms, o, false).dur;
+  const ms = startForArrival(target, dur, target - dur(target) * 1000);
+  assert.ok(Math.abs(ms + dur(ms) * 1000 - target) < 15e3);
+});
