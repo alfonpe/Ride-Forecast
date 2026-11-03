@@ -1,7 +1,7 @@
 import { hav } from "./geo.js";
 
 /* ---------- reference labels for the share card ----------
-   Without a map behind the route, a few names make it readable: the biggest town within 10 km of each
+   Without a map behind the route, a few names make it readable: the biggest town within 5 km of each
    25 km of route, the town nearest the furthest point, and the high point when the ride really climbs. */
 
 const SIZE = { city: 100000, town: 10000, village: 1000 };
@@ -42,7 +42,7 @@ export function summitName(tr, hi, summits = []) {
   return saddle ? saddle.name : "";
 }
 
-export function pickLabels(tr, places = [], summits = [], { every = 25, within = 10, climb = 200 } = {}) {
+export function pickLabels(tr, places = [], summits = [], { every = 25, within = 5, climb = 200 } = {}) {
   const out = [], clash = q => out.some(o => o.text === q.name || hav(o, q) < 4000);
   const near = places.map(q => ({ ...q, ...onTrack(tr, q) })).filter(q => q.off <= within * 1000);
   const totalKm = tr.total / 1000;

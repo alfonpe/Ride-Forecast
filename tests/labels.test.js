@@ -7,12 +7,13 @@ import { northTrack } from "./helpers.js";
 const at = km => 39.47 + km * 1000 / 111195;
 const east = (km, offKm) => ({ lat: at(km), lon: -0.38 + offKm * 1000 / (111195 * Math.cos(39.7 * Math.PI / 180)) });
 
-test("biggest town per 25 km, within 10 km of the route", () => {
+test("biggest town per 25 km, within 5 km of the route", () => {
   const tr = northTrack(60);
   const places = [
     { name: "Hamlet", place: "village", pop: 300, ...east(5, 1) },
-    { name: "Bigtown", place: "town", pop: 20000, ...east(12, 6) },
-    { name: "Faraway City", place: "city", pop: 900000, ...east(15, 25) },   // > 10 km off: ignored
+    { name: "Bigtown", place: "town", pop: 20000, ...east(12, 4) },
+    { name: "Sevenkm", place: "town", pop: 50000, ...east(14, 7) },          // > 5 km off: ignored
+    { name: "Faraway City", place: "city", pop: 900000, ...east(15, 25) },   // far off: ignored
     { name: "Midvillage", place: "village", ...east(33, 2) },
     { name: "Northtown", place: "town", ...east(58, 3) }
   ];
