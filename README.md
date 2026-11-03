@@ -47,6 +47,11 @@ It writes a content hash into `index.html` so browsers load every file of the ne
 | `js/best.js` | Best-time-to-leave scoring |
 | `js/map.js`, `js/charts.js`, `js/render.js`, `js/hover.js` | Map, charts, panels and hover sync |
 | `js/share.js`, `js/shortlink.js`, `js/demo.js` | Share links, short links (is.gd), demo route |
+| `js/stats.js` | Usage counts (GoatCounter) |
 | `js/net.js`, `js/time.js`, `js/util.js`, `js/icons.js` | Fetching, time zones and formatting, helpers, icons |
 
 Data: [Open-Meteo](https://open-meteo.com/) (forecast, ECMWF ensemble, CAMS air quality, Copernicus DEM elevation). Map © OpenStreetMap contributors.
+
+## Usage stats
+
+Visits and feature use (file imported, shared link opened, share link, share image, Home by) are counted with [GoatCounter](https://www.goatcounter.com/): no cookies and no personal data. The `#…` part of a shared link, which holds the plan, is never sent. Dashboard: https://alfonpe.goatcounter.com/

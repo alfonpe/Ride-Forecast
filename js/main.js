@@ -16,6 +16,7 @@ import { fetchPOIs, placePOIs } from "./pois.js";
 import { planFromHash, shareURL } from "./share.js";
 import { cachedShort, shorten } from "./shortlink.js";
 import { state } from "./state.js";
+import { track } from "./stats.js";
 import { fmtDay, fmtTime, msToWall, nextSaturday8, wallToMs, zone } from "./time.js";
 import { $, DAY, HOUR, deg, esc, r1, rad } from "./util.js";
 import { closest, dataWindow, fetchAir, fetchEnsemble, fetchWeather, resolveTZ, wxAt } from "./weather.js";
@@ -185,6 +186,7 @@ async function openShared() {
   $("#trackField").hidden = true;
   showSharedBanner(plan);
   useRoute(plan.route, "Shared link", plan.tz, { keepName: true }); // the sender's name for the ride
+  track("shared-link-opened");
   return true;
 }
 function showSharedBanner(plan) {
@@ -269,6 +271,7 @@ async function openFile(f) {
     const r = await readRouteBytes(new Uint8Array(await f.arrayBuffer()), f.name);
     rememberRoute(r.text || routesToGPX(r.routes), r.text ? r.name : r.name.replace(/\.fit$/i, "") + ".gpx");
     useRoutes(r.routes, r.name);
+    track("file-imported");
   } catch (e) { setStatus(e.message || "Couldn't read that file.", true); }
 }
 
@@ -341,6 +344,7 @@ $("#timeMode").addEventListener("click", e => {
   const b = e.target.closest("button[data-mode]"); if (!b || b.dataset.mode === state.timeMode) return;
   if (state.samples) $("#start").value = msToWall(Math.round((b.dataset.mode === "arrive" ? state.endMs : state.startMs) / 6e4) * 6e4);
   setTimeMode(b.dataset.mode);
+  if (b.dataset.mode === "arrive") track("home-by");
   if (state.track) run(false);
 });
 $("#scrub").addEventListener("input", e => { if (state.samples) setHover(parseFloat(e.target.value)); });
@@ -371,6 +375,7 @@ $("#share").addEventListener("click", async () => {
   act("share").disabled = act("copy").disabled = true;
   act("share").hidden = !navigator.share;
   v.hidden = false;
+  track("share-link");
   const long = state.shareUrl || await shareURL();
   history.replaceState(null, "", long);
   linkFor = long;
@@ -433,6 +438,7 @@ function drawPreview() {
 $("#shareImg").addEventListener("click", () => {
   if (!state.samples) return;
   if (state.samplesFor !== state.track) { setStatus("One moment: the forecast for this route is still being worked out."); return; }
+  track("share-image");
   const file = drawPreview();
   let canFiles = false;
   try { canFiles = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { /* unsupported */ }
