@@ -15,6 +15,33 @@ export function onTrack(tr, q) {
   return { km: tr.cum[best] / 1000, off: bd, i: best };
 }
 
+// Where the climb to point `hi` starts: walking back from the top, the lowest point before the road rises
+// again by more than 150 m (i.e. before the previous hill).
+export function climbStart(tr, hi) {
+  let lo = hi;
+  for (let i = hi - 1; i >= 0; i--) {
+    if (tr.ele[i] < tr.ele[lo]) lo = i;
+    else if (tr.ele[i] - tr.ele[lo] > 150) break;
+  }
+  return lo;
+}
+
+// A name for the high point, most certain first:
+// 1. a peak, saddle or pass within 500 m of it: it's really there
+// 2. a road pass (mountain_pass=yes) within 2 km of the route on the climb up to it: the road's summit often lies
+//    beyond the mapped pass point (ski station, viewpoint), as on the Puerto de Valdelinares
+// 3. a saddle the road crosses (within 250 m) within 1.5 km of the top
+export function summitName(tr, hi, summits = []) {
+  const p = tr.pts[hi], hiKm = tr.cum[hi] / 1000, fromKm = tr.cum[climbStart(tr, hi)] / 1000;
+  const here = summits.filter(q => hav(q, p) <= 500).sort((a, b) => hav(a, p) - hav(b, p))[0];
+  if (here) return here.name;
+  const placed = summits.map(q => ({ ...q, ...onTrack(tr, q) }));
+  const road = placed.filter(q => q.key === "mountain_pass" && q.off <= 2000 && q.km >= fromKm - 0.5 && q.km <= hiKm + 2).sort((a, b) => a.off - b.off)[0];
+  if (road) return road.name;
+  const saddle = placed.filter(q => q.off <= 250 && Math.abs(q.km - hiKm) <= 1.5 && (q.kind === "pass" || q.place === "saddle")).sort((a, b) => Math.abs(a.km - hiKm) - Math.abs(b.km - hiKm))[0];
+  return saddle ? saddle.name : "";
+}
+
 export function pickLabels(tr, places = [], summits = [], { every = 25, within = 10, climb = 200 } = {}) {
   const out = [], clash = q => out.some(o => o.text === q.name || hav(o, q) < 4000);
   const near = places.map(q => ({ ...q, ...onTrack(tr, q) })).filter(q => q.off <= within * 1000);
@@ -31,21 +58,13 @@ export function pickLabels(tr, places = [], summits = [], { every = 25, within =
     const q = near.filter(c => hav(c, far) <= within * 1000).sort((a, b) => hav(a, far) - hav(b, far))[0];
     if (q && !out.some(o => o.text === q.name)) out.push({ type: "place", lat: q.lat, lon: q.lon, text: q.name, km: q.km });
   }
-  // the high point, only when it's a real climb above the start; and the highest pass the road goes over
+  // the high point, only when it's a real climb above the start, named after the pass it belongs to
   if (tr.hasEle) {
     let hi = 0;
     for (let i = 1; i < tr.ele.length; i++) if (tr.ele[i] > tr.ele[hi]) hi = i;
     if (tr.ele[hi] - tr.ele[0] >= climb) {
-      const p = tr.pts[hi], hiKm = tr.cum[hi] / 1000;
-      // passes and saddles the route crosses: within 250 m of the road (one 1.5 km off is on another road)
-      const crossed = summits.filter(q => q.kind === "pass" || q.place === "saddle" || q.key === "mountain_pass")
-        .map(q => ({ ...q, ...onTrack(tr, q) })).filter(q => q.off <= 250);
-      // the high point takes a name only from something really there: a summit within 500 m, or a crossed pass within 1.5 km of road
-      const here = summits.filter(q => hav(q, p) <= 500).sort((a, b) => hav(a, p) - hav(b, p))[0]
-        || crossed.filter(q => Math.abs(q.km - hiKm) <= 1.5).sort((a, b) => Math.abs(a.km - hiKm) - Math.abs(b.km - hiKm))[0];
-      out.push({ type: "high", lat: p.lat, lon: p.lon, text: `${here ? here.name + " · " : ""}${Math.round(tr.ele[hi])} m`, km: hiKm });
-      const top = crossed.filter(q => !here || q.name !== here.name).sort((a, b) => tr.ele[b.i] - tr.ele[a.i])[0];
-      if (top) out.push({ type: "pass", lat: top.lat, lon: top.lon, text: `${top.name} · ${Math.round(tr.ele[top.i])} m`, km: top.km });
+      const p = tr.pts[hi], hiKm = tr.cum[hi] / 1000, name = summitName(tr, hi, summits);
+      out.push({ type: "high", lat: p.lat, lon: p.lon, text: `${name ? name + " · " : ""}${Math.round(tr.ele[hi])} m`, km: hiKm });
     }
   }
   return out.sort((a, b) => a.km - b.km);

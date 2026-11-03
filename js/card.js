@@ -103,8 +103,8 @@ export function drawCard() {
     taken.push(spot);
     g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 3;
     g.beginPath();
-    if (l.type === "high" || l.type === "pass") { g.moveTo(px, py - 9); g.lineTo(px + 9, py + 7); g.lineTo(px - 9, py + 7); g.closePath(); } else g.arc(px, py, 6, 0, 7);
-    if (l.type === "pass") { g.fillStyle = bg2; g.fill(); g.strokeStyle = ink; g.lineWidth = 2.5; g.stroke(); } else { g.fill(); g.stroke(); }
+    if (l.type === "high") { g.moveTo(px, py - 9); g.lineTo(px + 9, py + 7); g.lineTo(px - 9, py + 7); g.closePath(); } else g.arc(px, py, 6, 0, 7);
+    g.fill(); g.stroke();
     // a hairline from the dot when the label had to move away from it
     const [sx, sy] = [Math.max(spot[0], Math.min(px, spot[0] + tw)), Math.max(spot[1], Math.min(py, spot[1] + th))];
     if (Math.hypot(sx - px, sy - py) > 22) { g.strokeStyle = muted; g.lineWidth = 1.5; g.beginPath(); g.moveTo(px, py); g.lineTo(sx, sy); g.stroke(); }

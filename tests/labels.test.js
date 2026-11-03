@@ -60,21 +60,27 @@ test("Photon results become places (bilingual names shortened) or summits", asyn
   assert.deepEqual(photonFeatures(null), []);
 });
 
-test("passes: label the highest one the road crosses; ignore passes on other roads", () => {
-  const tr = northTrack(30, 10, m => 100 + 600 * Math.sin(m / 30000 * Math.PI)); // summit at km 15
-  const L = pickLabels(tr, [], [
-    { name: "Coll Baix", kind: "pass", ...east(5, 0.1) },      // crossed, lower
-    { name: "Coll Alt", kind: "pass", ...east(9, 0.15) },      // crossed, higher: this one
-    { name: "Port Llunyà", kind: "pass", ...east(13, 1.6) }    // 1.6 km off the road: another road
-  ]);
-  const high = L.find(l => l.type === "high"), pass = L.find(l => l.type === "pass");
-  assert.match(high.text, /^7\d\d m$/, "no pass at the summit itself, so just the height");
-  assert.match(pass.text, /^Coll Alt · \d+ m$/);
-  assert.ok(!L.some(l => /Llunyà/.test(l.text)));
+test("summit named after the road pass on its climb, even ~1.6 km off the road", () => {
+  const tr = northTrack(30, 10, m => 100 + 600 * Math.sin(m / 30000 * Math.PI)); // climb km 0–15, summit at km 15
+  const name = (summits) => pickLabels(tr, [], summits).filter(l => l.type === "high").map(l => l.text.replace(/\d+ m$/, "N m"));
+  assert.deepEqual(name([{ name: "Puerto Alto", key: "mountain_pass", kind: "pass", ...east(11, 1.6) }]), ["Puerto Alto · N m"]);
+  assert.deepEqual(name([{ name: "Port Baixada", key: "mountain_pass", kind: "pass", ...east(25, 1.6) }]), ["N m"], "on the descent: not this climb");
+  assert.deepEqual(name([{ name: "Port Lluny", key: "mountain_pass", kind: "pass", ...east(11, 3) }]), ["N m"], "3 km off: another road");
+  assert.deepEqual(name([{ name: "Collado", place: "saddle", kind: "pass", ...east(12, 1) }]), ["N m"], "a terrain saddle 1 km off doesn't count");
+  assert.deepEqual(name([{ name: "Coll del Cim", place: "saddle", kind: "pass", ...east(14.5, 0.1) }]), ["Coll del Cim · N m"], "crossed saddle near the top");
+  assert.deepEqual(name([{ name: "Port A", key: "mountain_pass", ...east(9, 1.8) }, { name: "Port B", key: "mountain_pass", ...east(13, 0.6) }]), ["Port B · N m"], "closest to the road wins");
 });
 
-test("a crossed pass right at the high point names it (once)", () => {
+test("only one label at the high point (no separate pass label)", () => {
   const tr = northTrack(30, 10, m => 100 + 600 * Math.sin(m / 30000 * Math.PI));
-  const L = pickLabels(tr, [], [{ name: "Port del Cim", kind: "pass", ...east(15.9, 0.1) }]);
-  assert.deepEqual(L.filter(l => l.type !== "place").map(l => l.text.replace(/\d+/, "N")), ["Port del Cim · N m"]);
+  const L = pickLabels(tr, [], [{ name: "Coll Baix", kind: "pass", place: "saddle", ...east(5, 0.1) }]);
+  assert.deepEqual(L.map(l => l.type), ["high"]);
+});
+
+test("the climb starts at the last low point before the summit", async () => {
+  const { climbStart } = await import("../js/labels.js");
+  // hill to 400 m at km 5, valley 150 m at km 10, summit 900 m at km 20
+  const tr = northTrack(25, 10, m => m < 5000 ? 100 + m * 0.06 : m < 10000 ? 400 - (m - 5000) * 0.05 : m < 20000 ? 150 + (m - 10000) * 0.075 : 900 - (m - 20000) * 0.1);
+  let hi = 0; tr.ele.forEach((e, i) => { if (e > tr.ele[hi]) hi = i; });
+  assert.ok(Math.abs(tr.cum[climbStart(tr, hi)] / 1000 - 10) < 0.3);
 });
