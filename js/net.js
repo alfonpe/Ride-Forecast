@@ -25,3 +25,12 @@ export async function fetchJSON(url, { timeout = 20000, what = "The weather serv
     return j;
   }
 }
+
+// Slow-changing lookups (town names, water points) kept on this device: one slot per kind, for the latest route.
+export function stored(key, days) {
+  try { const v = JSON.parse(localStorage.getItem(key) || "null"); if (v && Date.now() - v.t < days * 864e5) return v.d; } catch (e) { /* none */ }
+  return null;
+}
+export function store(key, d) {
+  try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), d })); } catch (e) { /* full or blocked: just not kept */ }
+}

@@ -60,7 +60,8 @@ export function wxAt(loc, ms) {
     code: H.weather_code[near] ?? H.weather_code[i], cloud: L("cloud_cover"),
     ws: L("wind_speed_10m"), gust: L("wind_gusts_10m", L("wind_speed_10m")),
     wdir: (deg(Math.atan2(u, v)) + 360) % 360,
-    vis: L("visibility", 1e5), cape: L("cape"), uv: Math.max(0, L("uv_index")), wet12: rainBefore(H, i, 12)
+    vis: L("visibility", 1e5), cape: L("cape"), uv: Math.max(0, L("uv_index")), wet12: rainBefore(H, i, 12),
+    wet6: rainBefore(H, i - 1, 6) // fell in the 6 h before this hour, not during it
   };
 }
 // rain in the hours before (wet roads linger after the rain stops)

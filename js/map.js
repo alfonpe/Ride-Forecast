@@ -2,10 +2,11 @@ import { compass, hav, locate } from "./geo.js";
 import { HAZ } from "./hazards.js";
 import { setHover } from "./hover.js";
 import { ICON, arrowSvg } from "./icons.js";
+import { POI } from "./pois.js";
 import { catColor, hazWhere } from "./render.js";
 import { state } from "./state.js";
 import { fmtTime } from "./time.js";
-import { $, clamp, css, r0, r1, rad } from "./util.js";
+import { $, clamp, css, esc, r0, r1, rad } from "./util.js";
 
 /* ---------- colour ramps for the map ---------- */
 // stops are positions 0–1 along the bar; the value range is fitted to each ride (see rampRange)
@@ -96,6 +97,12 @@ export function drawMap(fit) {
     pin(p, `<svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.cup}</svg>`, css("--accent"),
       `Stop at km ${r1(st.km)} · ${st.min} min<br>arrive ${fmtTime(state.startMs + (p.t - st.min * 60) * 1000)}`);
   });
+  (state.pois || []).forEach(q => {
+    const ic = { water: "drop", cafe: "cup", shop: "bag" }[q.kind];
+    L.marker([q.lat, q.lon], { icon: L.divIcon({ html: `<div class="poi ${q.kind}"><svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ICON[ic]}</svg></div>`, className: "", iconSize: [20, 20], iconAnchor: [10, 10] }), zIndexOffset: 500, keyboard: false })
+      .bindTooltip(`<b>${esc(q.name || POI[q.kind])}</b><br>${POI[q.kind]} · km ${r1(q.km)}${q.off > 40 ? ` · ${r0(q.off / 10) * 10} m off route` : ""}${q.hours ? `<br>${esc(q.hours)}` : ""}`, { direction: "top", offset: [0, -10] })
+      .addTo(pinLayer);
+  });
   state.hazards.forEach(z => pin(S[z.k0], "!", css(z.sev === "bad" ? "--head" : "--cross"), `<b>${HAZ[z.type]}</b> ${hazWhere(z)}<br>${z.detail}`));
   if (!hoverMarker) hoverMarker = L.circleMarker([0, 0], { radius: 8, color: "#fff", weight: 3, fillColor: css("--accent"), fillOpacity: 1, interactive: false });
   hoverMarker.setStyle({ fillColor: css("--accent") });
@@ -121,5 +128,6 @@ export function drawLegend([lo, hi]) {
   $("#legend").innerHTML =
     `<div class="cbar"><span class="cbar-title">${r.label} (${r.unit})</span><i style="background:linear-gradient(90deg,${grad})"></i><div class="cbar-ticks num">${ticks}</div></div>` +
     `<span>Arrows point where the wind blows, number is forecast km/h at 10 m:</span>` +
-    `<span class="key"><b style="background:var(--head)"></b>headwind</span><span class="key"><b style="background:var(--cross)"></b>crosswind</span><span class="key"><b style="background:var(--tail)"></b>tailwind</span>`;
+    `<span class="key"><b style="background:var(--head)"></b>headwind</span><span class="key"><b style="background:var(--cross)"></b>crosswind</span><span class="key"><b style="background:var(--tail)"></b>tailwind</span>` +
+    (state.pois && state.pois.length ? `<span>From OpenStreetMap:</span><span class="key"><b style="background:var(--cool)"></b>drinking water</span><span class="key"><b style="background:var(--cafe)"></b>café / bakery</span><span class="key"><b style="background:var(--muted)"></b>shop / petrol</span>` : "");
 }

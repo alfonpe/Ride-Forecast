@@ -22,6 +22,16 @@ npm test
 
 Node 22's built-in test runner; no dependencies to install. CI runs the same on every push.
 
+## Releasing a change
+
+After editing anything in `js/` or `styles.css`, run:
+
+```bash
+npm run stamp
+```
+
+It writes a content hash into `index.html` so browsers load every file of the new version together (no mix of a new page with an old cached script). The tests fail if you forget.
+
 ## Layout
 
 | File | What it does |

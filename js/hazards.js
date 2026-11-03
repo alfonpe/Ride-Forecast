@@ -2,7 +2,9 @@ import { wmo } from "./icons.js";
 import { r0, r1, rad } from "./util.js";
 
 /* ---------- hazards: storms, freezing rain/snow, ice, fog, crosswind gusts, heat ---------- */
-export const HAZ = { rain: "Heavy rain", storm: "Thunderstorm risk", frz: "Freezing rain", snow: "Snow", ice: "Ice risk", fog: "Fog", xwind: "Strong crosswind gusts", heat: "Heat stress" };
+export const HAZ = { rain: "Heavy rain", wet: "Wet roads", storm: "Thunderstorm risk", frz: "Freezing rain", snow: "Snow", ice: "Ice risk", fog: "Fog", xwind: "Strong crosswind gusts", heat: "Heat stress" };
+// dry now but rain fell recently: roads stay wet for hours, longer when it's cold
+export const wetRoad = s => s.precip < 0.1 && s.temp > 2 && (s.wet6 >= 0.5 || (s.temp < 8 && s.wet12 >= 1));
 export const STORM = [95, 96, 99], FRZ = [56, 57, 66, 67], SNOW = [71, 73, 75, 77, 85, 86];
 export function detectHazards(S, tr) {
   const eles = S.map(s => s.ele).sort((a, b) => a - b), high = eles[Math.floor(eles.length * 0.85)];
@@ -17,6 +19,7 @@ export function detectHazards(S, tr) {
       h.push(["fog", s.vis < 200 ? "bad" : "warn", s.vis < 1e4 ? `visibility about ${s.vis >= 1000 ? r1(s.vis / 1000) + " km" : r0(s.vis / 10) * 10 + " m"}; lights on` : `${wmo(s.code)[0]}; lights on`]);
     const xg = s.gust * Math.abs(Math.sin(rad(s.rel)));  // side-on part of the 10 m gusts
     if (s.precip >= 7.6) h.push(["rain", s.precip >= 30 ? "bad" : "warn", `${r1(s.precip)} mm/h: poor grip and visibility, standing water likely`]);
+    if (wetRoad(s)) h.push(["wet", "warn", `${r1(Math.max(s.wet6, s.wet12 || 0))} mm of rain fell in the hours before; slippery corners, road paint and metal covers`]);
     if (xg >= 40) h.push(["xwind", xg >= 55 || (desc && xg >= 45) ? "bad" : "warn", `${r0(xg)} km/h side-on gusts from the ${s.side}${exposed ? " on exposed high ground" : ""}${desc ? " while descending" : ""}`]);
     if (s.feels >= 35) h.push(["heat", s.feels >= 40 ? "bad" : "warn", `feels like ${r0(s.feels)} °C`]);
     return h;

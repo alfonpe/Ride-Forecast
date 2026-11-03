@@ -1,14 +1,19 @@
-import { scoreStarts } from "./best.js";
+import { compareReversed, scoreStarts } from "./best.js";
+import { cardFile, drawCard } from "./card.js";
 import { renderCharts } from "./charts.js";
 import { demoGPX } from "./demo.js";
 import { parseRouteFile, readRouteBytes, routesToGPX } from "./files.js";
-import { buildTrack, fetchElevation, locate, makeSamples } from "./geo.js";
+import { buildTrack, fetchElevation, locate, makeSamples, routeKey } from "./geo.js";
 import { detectHazards } from "./hazards.js";
 import { nearestSample, setHover } from "./hover.js";
 import { handleLink } from "./links.js";
 import { drawMap, initMap, map } from "./map.js";
-import { parseStops, riderFeels, simulate } from "./pacing.js";
-import { renderAll, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ } from "./render.js";
+import { parseStops, riderFeels, simulate, startForArrival } from "./pacing.js";
+import { renderAll, renderDirection, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ, updateTimeHint } from "./render.js";
+import { isLoop, orientTrack, remapKm } from "./orient.js";
+import { store, stored } from "./net.js";
+import { fetchPlaces } from "./places.js";
+import { fetchPOIs, placePOIs } from "./pois.js";
 import { planFromHash, shareURL } from "./share.js";
 import { state } from "./state.js";
 import { fmtDay, fmtTime, msToWall, nextSaturday8, wallToMs, zone } from "./time.js";
@@ -16,7 +21,12 @@ import { $, DAY, HOUR, deg, esc, r1, rad } from "./util.js";
 import { closest, dataWindow, fetchAir, fetchEnsemble, fetchWeather, resolveTZ, wxAt } from "./weather.js";
 
 let runSeq = 0, loadSeq = 0;
-function useStart(ms) { $("#start").value = msToWall(ms); run(false); }
+function setTimeMode(mode) {
+  state.timeMode = mode;
+  $("#timeMode").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+  updateTimeHint();
+}
+function useStart(ms) { setTimeMode("start"); $("#start").value = msToWall(ms); run(false); }
 
 function readOpts() {
   const tr = state.track, { stops, bad } = parseStops($("#stops").value, tr.total);
@@ -29,12 +39,13 @@ async function run(fit) {
   if (!state.track) { setStatus("Choose a GPX or TCX file first.", true); return; }
   const o = readOpts(), tr = state.track;
   if (!(o.speed >= 5 && o.speed <= 60)) { setStatus("Enter an average speed between 5 and 60 km/h.", true); return; }
-  const startMs = wallToMs($("#start").value);
-  if (!isFinite(startMs)) { setStatus("Pick a start date and time.", true); return; }
+  const wallMs = wallToMs($("#start").value), arrive = state.timeMode === "arrive";
+  if (!isFinite(wallMs)) { setStatus(arrive ? "Pick when you need to be home." : "Pick a start date and time.", true); return; }
   if (!state.base || state.base.tr !== tr) state.base = { tr, S: makeSamples(tr) };
   const S = state.base.S.map(s => ({ ...s }));
-  // still-air estimate sizes the request; the window also covers the whole day for the best-start planner
-  const est = simulate(tr, S, null, startMs, o, false);
+  // still-air estimate sizes the request (and seeds the start in "Home by" mode); the window also covers the whole day for the best-start planner
+  const est = simulate(tr, S, null, wallMs, o, false);
+  let startMs = arrive ? wallMs - est.dur * 1000 : wallMs;
   if (startMs > Date.now() + 15.5 * DAY) { setStatus("Forecasts only reach 16 days ahead. Pick a start time within that window.", true); return; }
   if (startMs + est.dur * 1000 < Date.now() - 90 * DAY) { setStatus("That date is more than 3 months ago. Pick a recent or upcoming start time.", true); return; }
   const dayWall = msToWall(startMs).slice(0, 10), d4 = wallToMs(dayWall + "T04:00"), d21 = wallToMs(dayWall + "T21:00");
@@ -45,6 +56,7 @@ async function run(fit) {
     const locs = await fetchWeather(S, fromMs, toMs);
     if (id !== runSeq) return;
     const win = dataWindow(locs);
+    if (arrive) startMs = startForArrival(wallMs, ms => simulate(tr, S, locs, ms, o, false).dur, startMs);
     if (startMs < win[0]) throw new Error("There's no forecast data that far back. Pick a later start time.");
     const sim = simulate(tr, S, locs, startMs, o, true), endMs = startMs + sim.dur * 1000;
     if (endMs > win[1]) throw new Error(`At this pace you'd finish ${fmtDay(endMs)} ${fmtTime(endMs)}, past the end of the forecast (${fmtDay(win[1])} ${fmtTime(win[1])}). Start earlier, ride faster or shorten the route.`);
@@ -65,12 +77,18 @@ async function run(fit) {
       s.air = Math.max(0, s.spd + s.head);
       s.bike = riderFeels(s.temp, s.air, s.feels);
     });
-    Object.assign(state, { samples: S, startMs, endMs, sim, locs, opts: o, ens: undefined, air: undefined, hazards: detectHazards(S, tr) });
+    Object.assign(state, { samples: S, samplesFor: tr, startMs, endMs, sim, locs, opts: o, ens: undefined, air: undefined, hazards: detectHazards(S, tr) });
     state.sun = { rise: closest(locs[0].daily && locs[0].daily.sunrise, startMs), set: closest(locs[locs.length - 1].daily && locs[locs.length - 1].daily.sunset, endMs) };
     state.best = scoreStarts(tr, S, locs, o, dayWall, win);
+    // the same ride the other way round, on the weather already downloaded
+    state.dirCompare = null;
+    try { const alt = altTrack(); state.dirCompare = compareReversed(tr, S, alt, makeSamples(alt), locs, startMs, o); } catch (e) { /* comparison is optional */ }
     state.hoverKm = null;
     renderAll(fit);
-    setStatus(`Forecast for ${S.length} checkpoints, ${fmtDay(startMs)} ${fmtTime(startMs)} → ${fmtTime(endMs)}.`);
+    redrawCard();
+    setStatus(arrive ? `Leave at ${fmtTime(startMs)} (${fmtDay(startMs)}) to be home by ${fmtTime(endMs)}. Forecast for ${S.length} checkpoints.`
+      : `Forecast for ${S.length} checkpoints, ${fmtDay(startMs)} ${fmtTime(startMs)} → ${fmtTime(endMs)}.`);
+    updateTimeHint();
     saveSettings();
     state.shareUrl = null;
     shareURL().then(u => { if (id === runSeq) state.shareUrl = u; }).catch(() => {}); // ready before the tap: phones only allow sharing straight from a gesture
@@ -89,6 +107,63 @@ async function run(fit) {
   } finally { if (id === runSeq) { btn.disabled = false; btn.textContent = "Get forecast"; } }
 }
 
+/* ---------- which way round ---------- */
+function altTrack() {
+  const o = state.orient, c = state.altCache, key = `${o.s}|${!o.rev}`;
+  if (c && c.base === state.baseTrack && c.key === key) return c.track;
+  const track = orientTrack(state.baseTrack, { s: o.s, rev: !o.rev });
+  state.altCache = { base: state.baseTrack, key, track };
+  return track;
+}
+// switch direction / start; typed stops move with their spot on the road
+function applyOrientation(next) {
+  const base = state.baseTrack, T = base.total, loop = isLoop(base), cur = state.orient;
+  const ctx = o => ({ loop, s0: base.cum[o.s], rev: o.rev });
+  const track = orientTrack(base, next), maxKm = track.total / 1000 - 0.01;
+  const { stops, bad } = parseStops($("#stops").value, state.track.total);
+  if (stops.length) {
+    const moved = stops.map(st => ({ km: Math.max(0, Math.min(maxKm, remapKm(st.km, ctx(cur), ctx(next), T))), min: st.min })).sort((a, b) => a.km - b.km);
+    $("#stops").value = [...moved.map(x => `${r1(x.km)}@${x.min}`), ...bad].join(", ");
+  }
+  Object.assign(state, { orient: next, track, base: null, shareUrl: null, pickingStart: false });
+  if (state.poisRaw !== undefined) state.pois = placePOIs(state.poisRaw, track);
+  $("#map").classList.remove("picking");
+  run(false);
+}
+function nearestBaseIdx(latlng) {
+  const P = state.baseTrack.pts, k = Math.cos(rad(latlng.lat));
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < P.length; i++) { const d = (P[i].lat - latlng.lat) ** 2 + ((P[i].lon - latlng.lng) * k) ** 2; if (d < bd) { bd = d; best = i; } }
+  return { i: best, metres: Math.sqrt(bd) * 111195 };
+}
+
+/* ---------- route name: editable, remembered per route on this device ---------- */
+function savedName(tr) {
+  try { return (JSON.parse(localStorage.getItem("rf-names") || "{}"))[routeKey(tr)] || ""; } catch (e) { return ""; }
+}
+function renameRoute(name) {
+  name = name.replace(/\s+/g, " ").trim().slice(0, 80);
+  if (!name || name === state.name || !state.baseTrack) return;
+  state.name = name;
+  try { const all = JSON.parse(localStorage.getItem("rf-names") || "{}"); all[routeKey(state.baseTrack)] = name; localStorage.setItem("rf-names", JSON.stringify(all)); } catch (e) { /* not remembered */ }
+  renderDirection(); // refreshes the name shown in the top bar
+  state.shareUrl = null;
+  shareURL().then(u => { state.shareUrl = u; }).catch(() => {});
+}
+function editName() {
+  const btn = $("#nameBtn"), inp = $("#nameInput");
+  inp.value = state.name || ""; btn.hidden = true; inp.hidden = false; inp.focus(); inp.select();
+}
+function endEditName(save) {
+  const btn = $("#nameBtn"), inp = $("#nameInput");
+  if (inp.hidden) return;
+  if (save) renameRoute(inp.value);
+  inp.hidden = true; btn.hidden = false;
+}
+$("#nameBtn").addEventListener("click", editName);
+$("#nameInput").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); endEditName(true); } else if (e.key === "Escape") endEditName(false); });
+$("#nameInput").addEventListener("blur", () => endEditName(true));
+
 /* ---------- shared ride plans ---------- */
 async function openShared() {
   let plan;
@@ -105,10 +180,11 @@ async function openShared() {
     state.metric = plan.metric;
     $("#metric").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.m === plan.metric));
   }
+  setTimeMode("start");
   state.routes = [plan.route];
   $("#trackField").hidden = true;
   showSharedBanner(plan);
-  useRoute(plan.route, "Shared link", plan.tz);
+  useRoute(plan.route, "Shared link", plan.tz, { keepName: true }); // the sender's name for the ride
   return true;
 }
 function showSharedBanner(plan) {
@@ -124,18 +200,37 @@ function showSharedBanner(plan) {
 }
 
 /* ---------- loading routes ---------- */
-async function useRoute(route, label, knownTz) {
+async function useRoute(route, label, knownTz, { keepName = false } = {}) {
   const id = ++loadSeq;
   let tr;
   try { tr = buildTrack(route.pts); } catch (e) { setStatus(e.message, true); return; }
-  state.track = tr; state.name = route.name; state.base = null;
-  $("#routeName").textContent = route.name || "Route";
+  state.track = state.baseTrack = tr; state.name = (!keepName && savedName(tr)) || route.name; state.base = null;
+  state.orient = { s: 0, rev: false }; state.pickingStart = false; state.altCache = null; $("#map").classList.remove("picking");
+  $("#routeName").textContent = state.name || "Route";
   if (label) $("#fileLabel").textContent = label;
   setStatus("Preparing the route…");
-  const [tz] = await Promise.all([
-    knownTz || resolveTZ(tr.pts[0]),
-    tr.hasEle ? null : fetchElevation(tr).catch(() => null)
-  ]);
+  // town names and water points start right away: they need only the route, not the time zone or the weather
+  const dem = tr.hasEle ? null : fetchElevation(tr).catch(() => null);
+  state.poisRaw = state.pois = undefined;
+  state.places = undefined; state.placesDone = false; // loading
+  fetchPlaces(tr, partial => { if (id === loadSeq) { state.places = partial; redrawCard(); } }, { eleReady: dem }).catch(() => null).then(res => {
+    if (id !== loadSeq) return;
+    state.places = res; state.placesDone = true;
+    redrawCard();
+  });
+  const useWater = res => {
+    state.poisRaw = res ? res.pois : null; state.pois = placePOIs(state.poisRaw, state.track);
+    if (state.samples && state.samplesFor === state.track) { drawMap(false); renderNotes(); renderTable(); }
+    redrawCard(); // its water tile
+  };
+  const kept = stored("rf-pois", 30), rk = routeKey(tr);
+  if (kept && kept.id === rk) useWater(kept.res);
+  else fetchPOIs(tr.pts).then(res => {
+    if (id !== loadSeq) return;
+    if (res) store("rf-pois", { id: rk, res });
+    useWater(res);
+  });
+  const [tz] = await Promise.all([knownTz || resolveTZ(tr.pts[0]), dem]);
   if (id !== loadSeq) return;
   zone.name = tz; showTZ();
   $("#eleHint").textContent = `${r1(tr.total / 1000)} km · ` + (tr.eleSrc === "file" ? "elevation from file" : tr.eleSrc === "dem" ? "elevation from terrain model" : "no elevation available (flat pacing)");
@@ -183,6 +278,7 @@ function saveSettings() {
   try {
     localStorage.setItem("rf-speed", $("#speed").value); localStorage.setItem("rf-hills", $("#hills").checked ? "1" : "0");
     localStorage.setItem("rf-wf", $("#wf").value); localStorage.setItem("rf-stops", $("#stops").value);
+    localStorage.setItem("rf-mode", state.timeMode);
   } catch (e) {}
 }
 const THEMES = ["auto", "light", "dark"];
@@ -199,6 +295,7 @@ try {
   const h = localStorage.getItem("rf-hills"); if (h) $("#hills").checked = h === "1";
   const wf = localStorage.getItem("rf-wf"); if (wf && [...$("#wf").options].some(x => x.value === wf)) $("#wf").value = wf;
   const st = localStorage.getItem("rf-stops"); if (st) $("#stops").value = st;
+  if (localStorage.getItem("rf-mode") === "arrive") setTimeMode("arrive");
   const th = localStorage.getItem("rf-theme"); if (THEMES.includes(th) && th !== "auto") document.documentElement.dataset.theme = th;
 } catch (e) {}
 
@@ -235,6 +332,24 @@ $("#metric").addEventListener("click", e => {
   $("#metric").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
   if (state.samples) drawMap(false);
 });
+$("#dirBar").addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]"); if (!b || !state.baseTrack) return;
+  if (b.dataset.act === "reverse") applyOrientation({ ...state.orient, rev: !state.orient.rev });
+  else if (b.dataset.act === "resetStart") applyOrientation({ ...state.orient, s: 0 });
+  else if (b.dataset.act === "pick") {
+    state.pickingStart = !state.pickingStart;
+    $("#map").classList.toggle("picking", state.pickingStart);
+    if (state.pickingStart) setStatus("Tap the route on the map where you'll start the loop.");
+    renderDirection();
+  }
+});
+// switching keeps the same plan: "Start at" shows the start, "Home by" the arrival
+$("#timeMode").addEventListener("click", e => {
+  const b = e.target.closest("button[data-mode]"); if (!b || b.dataset.mode === state.timeMode) return;
+  if (state.samples) $("#start").value = msToWall(Math.round((b.dataset.mode === "arrive" ? state.endMs : state.startMs) / 6e4) * 6e4);
+  setTimeMode(b.dataset.mode);
+  if (state.track) run(false);
+});
 $("#scrub").addEventListener("input", e => { if (state.samples) setHover(parseFloat(e.target.value)); });
 $("#hazards").addEventListener("click", e => {
   const b = e.target.closest(".hz"); if (!b) return;
@@ -245,6 +360,8 @@ $("#picks").addEventListener("click", e => { const b = e.target.closest("button[
 $("#stops").addEventListener("change", () => { if (state.track) run(false); });
 $("#wf").addEventListener("change", () => { if (state.track) run(false); });
 $("#hills").addEventListener("change", () => { if (state.track) run(false); });
+let editTimer = 0;
+for (const id of ["#start", "#speed"]) $(id).addEventListener("change", () => { clearTimeout(editTimer); editTimer = setTimeout(() => { if (state.track) run(false); }, 600); });
 function planSummary() {
   const st = state.opts ? state.opts.stops : [];
   return `${state.name}, ${fmtDay(state.startMs)} ${fmtTime(state.startMs)}, ${$("#speed").value} km/h` +
@@ -262,6 +379,68 @@ $("#share").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(url); setStatus(`Link copied. It opens the full plan: ${planSummary()}.`); }
   catch (e) { setStatus("The share link is now in the address bar; copy it from there."); }
 });
+// "Share image" opens a preview first, then offers what this browser can do: share sheet, copy, download.
+// (Each action is its own tap, so the share sheet's "must come from a gesture" rule always holds.)
+let card = null;
+function hideImage() { $("#imgView").hidden = true; if (card) URL.revokeObjectURL(card.url); card = null; }
+// the open preview follows late data (names, a finished forecast); a failed redraw must not leave it stuck
+function redrawCard() {
+  if (!card || $("#imgView").hidden) return;
+  if (state.samplesFor !== state.track) { $("#imgHint").textContent = "Updating the forecast for this route…"; return; }
+  try { drawPreview(); } catch (e) { $("#imgHint").textContent = cardHint(); }
+}
+function cardHint() {
+  const base = $("#imgHint").dataset.base || "";
+  if (!state.placesDone) return "Adding town names… (the picture updates by itself)";
+  if (!state.places) return `${base} Town names couldn't be loaded right now.`;
+  return state.places.partial ? `${base} Some town names couldn't be loaded right now.` : base;
+}
+function drawPreview() {
+  const canvas = drawCard(), slug = (state.name || "ride").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "ride";
+  const dataUrl = canvas.toDataURL("image/png"), file = cardFile(dataUrl, `ride-plan-${slug}.png`);
+  if (card) URL.revokeObjectURL(card.url);
+  card = { file, url: URL.createObjectURL(file), text: `Ride plan: ${planSummary()}` + (state.shareUrl ? `\n${state.shareUrl}` : "") };
+  const v = $("#imgView"), dl = v.querySelector('[data-act="download"]');
+  v.querySelector("img").src = dataUrl;
+  dl.href = card.url; dl.setAttribute("download", file.name);
+  $("#imgHint").textContent = cardHint();
+  return file;
+}
+$("#shareImg").addEventListener("click", () => {
+  if (!state.samples) return;
+  if (state.samplesFor !== state.track) { setStatus("One moment: the forecast for this route is still being worked out."); return; }
+  const file = drawPreview();
+  let canFiles = false;
+  try { canFiles = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { /* unsupported */ }
+  const canCopy = !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem), phone = matchMedia("(pointer: coarse)").matches;
+  const v = $("#imgView"), act = n => v.querySelector(`[data-act="${n}"]`);
+  act("share").hidden = !canFiles;
+  act("copy").hidden = !canCopy || phone;
+  act("download").hidden = phone && canFiles;
+  $("#cardTitle").value = state.name || "";
+  $("#imgHint").dataset.base = canFiles ? "Share it to a chat, or save it." : phone ? "Press and hold the image to save or share it." : "Copy it and paste into a chat (e.g. WhatsApp Web), or download it.";
+  $("#imgHint").textContent = cardHint();
+  v.hidden = false;
+  (canFiles ? act("share") : v.querySelector("[data-close]")).focus();
+});
+// retitling in the preview renames the route everywhere and redraws the picture
+let titleTimer = 0;
+$("#cardTitle").addEventListener("input", e => {
+  clearTimeout(titleTimer);
+  titleTimer = setTimeout(() => { renameRoute(e.target.value); if (card) drawPreview(); }, 250);
+});
+$("#imgView").addEventListener("click", e => {
+  if (e.target === e.currentTarget || e.target.closest("[data-close]")) { hideImage(); return; }
+  const b = e.target.closest("[data-act]"); if (!b || !card) return;
+  if (b.dataset.act === "share") {
+    navigator.share({ files: [card.file], title: `Ride plan: ${state.name}`, text: card.text })
+      .then(() => { hideImage(); setStatus("Ride plan image shared."); }, e2 => { if (e2.name !== "AbortError") $("#imgHint").textContent = "Couldn't open the share sheet; press and hold the image, or download it."; });
+  } else if (b.dataset.act === "copy") {
+    navigator.clipboard.write([new ClipboardItem({ "image/png": card.file })])
+      .then(() => { $("#imgHint").textContent = "Copied. Paste it into a chat."; }, () => { $("#imgHint").textContent = "This browser wouldn't copy the image; use Download instead."; });
+  } else if (b.dataset.act === "download") setTimeout(() => { $("#imgHint").textContent = `Saved ${card ? card.file.name : "the image"} to your downloads.`; }, 300);
+});
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("#imgView").hidden) hideImage(); });
 $("#theme").addEventListener("click", () => {
   const cur = document.documentElement.dataset.theme || "auto", next = THEMES[(THEMES.indexOf(cur) + 1) % 3];
   try { localStorage.setItem("rf-theme", next); } catch (e) {}
@@ -270,6 +449,14 @@ $("#theme").addEventListener("click", () => {
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (state.samples) renderAll(false); });
 
 initMap();
+// a DOM listener (not map.on): taps landing on a wind arrow or pin must count too, and markers don't pass clicks to the map
+$("#map").addEventListener("click", e => {
+  if (!state.pickingStart || e.target.closest(".leaflet-control")) return;
+  const { i, metres } = nearestBaseIdx(map.mouseEventToLatLng(e)), n = state.baseTrack.pts.length;
+  if (metres > 500) { setStatus("That's too far from the route; tap on the route itself.", true); return; }
+  applyOrientation({ ...state.orient, s: i > 0 && i < n - 1 ? i : 0 });
+});
+addEventListener("keydown", e => { if (e.key === "Escape" && state.pickingStart) { state.pickingStart = false; $("#map").classList.remove("picking"); renderDirection(); } });
 {
   const th = document.documentElement.dataset.theme || "auto";
   $("#theme").setAttribute("aria-label", `Theme: ${th} (click to change)`); $("#theme").title = `Theme: ${th}`;

@@ -16,6 +16,7 @@ export const ICON = {
   gust: '<path d="M3 7h7a2 2 0 1 0-2-2M3 11h11M3 15h7a2 2 0 1 1-2 2"/>',
   drop: '<path d="M10 3s5 5.5 5 9a5 5 0 0 1-10 0c0-3.5 5-9 5-9z"/>',
   shield: '<path d="M10 2.8l6 2.4v4.6c0 3.7-2.6 6.2-6 7.4-3.4-1.2-6-3.7-6-7.4V5.2z"/><path d="M7.5 10l1.8 1.8L13 8"/>',
+  bag: '<path d="M5 7h10l-1 10H6zM8 7a2 2 0 0 1 4 0"/>',
   cup: '<path d="M4 8h10v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM14 9h1.5a2 2 0 0 1 0 4H14M7 3.5v2M10 3.5v2"/>'
 };
 export function wmo(c) {

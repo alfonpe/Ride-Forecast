@@ -65,3 +65,35 @@ export function riderFeels(T, air, apparent) {
   if (T <= 10) return Math.min(T, chill(T));
   return T + (chill(10) - 10) * (24 - T) / 14;
 }
+
+// "Home by": the start whose simulated ride ends at `target`. Ride time depends on when you leave
+// (the wind changes), so step the start by the miss until it lands within 15 s; 2–3 steps usually.
+export function startForArrival(target, durAt, guess) {
+  let ms = guess;
+  for (let k = 0; k < 8; k++) {
+    const miss = ms + durAt(ms) * 1000 - target;
+    if (Math.abs(miss) < 15e3) break;
+    ms -= miss;
+  }
+  return ms;
+}
+
+// Where the moving time goes: climbing (≥ +3 %), descending (≤ −3 %) and flat, judged on the gradient over
+// ±100 m so GPS/elevation noise doesn't flip short stretches. `spd` is the simulated speed per segment (m/s).
+export function timeSplit(tr, spd, { grade = 0.03, win = 100 } = {}) {
+  const out = { climb: { t: 0, d: 0 }, flat: { t: 0, d: 0 }, down: { t: 0, d: 0 } }, n = tr.pts.length, cum = tr.cum;
+  for (let i = 1, lo = 0, hi = 0; i < n; i++) {
+    const d = cum[i] - cum[i - 1];
+    if (!(d > 0) || !(spd[i] > 0)) continue;
+    let g = 0;
+    if (tr.hasEle) {
+      while (cum[i] - cum[lo] > win) lo++;
+      if (hi < i) hi = i;
+      while (hi + 1 < n && cum[hi + 1] - cum[i] <= win) hi++;
+      g = (tr.ele[hi] - tr.ele[lo]) / ((cum[hi] - cum[lo]) || 1);
+    }
+    const k = g >= grade ? "climb" : g <= -grade ? "down" : "flat";
+    out[k].t += d / spd[i]; out[k].d += d;
+  }
+  return out;
+}
