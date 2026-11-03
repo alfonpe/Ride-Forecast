@@ -47,3 +47,15 @@ test("Overpass places, summits and POIs are separated", () => {
   assert.deepEqual(r.summits.map(p => [p.name, p.ele]), [["Garbí", 593], ["Coll", null]]);
   assert.equal(r.pois.length, 1);
 });
+
+test("Photon results become places (bilingual names shortened) or summits", async () => {
+  const { photonFeatures } = await import("../js/places.js");
+  const json = { features: [
+    { geometry: { coordinates: [-0.45, 39.6] }, properties: { name: "Nàquera / Náquera", osm_key: "place", osm_value: "village" } },
+    { geometry: { coordinates: [-0.5, 39.7] }, properties: { name: "Garbí", osm_key: "natural", osm_value: "peak" } },
+    { geometry: { coordinates: [] }, properties: { name: "Broken" } }
+  ] };
+  assert.deepEqual(photonFeatures(json, p => p.osm_key === "place").map(p => [p.name, p.place]), [["Nàquera", "village"]]);
+  assert.deepEqual(photonFeatures(json, p => p.osm_key === "natural").map(p => p.name), ["Garbí"]);
+  assert.deepEqual(photonFeatures(null), []);
+});

@@ -11,6 +11,7 @@ import { drawMap, initMap, map } from "./map.js";
 import { parseStops, riderFeels, simulate, startForArrival } from "./pacing.js";
 import { renderAll, renderDirection, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ, updateTimeHint } from "./render.js";
 import { isLoop, orientTrack, remapKm } from "./orient.js";
+import { fetchPlaces } from "./places.js";
 import { fetchPOIs, placePOIs } from "./pois.js";
 import { planFromHash, shareURL } from "./share.js";
 import { state } from "./state.js";
@@ -214,11 +215,15 @@ async function useRoute(route, label, knownTz, { keepName = false } = {}) {
   if (id !== loadSeq) return;
   zone.name = tz; showTZ();
   state.poisRaw = state.pois = undefined;
-  state.places = null;
+  state.places = undefined; // loading
+  fetchPlaces(tr).catch(() => null).then(res => {
+    if (id !== loadSeq) return;
+    state.places = res;
+    if (card && !$("#imgView").hidden) drawPreview(); // the card was opened before the names arrived
+  });
   fetchPOIs(tr.pts).then(res => {
     if (id !== loadSeq) return;
     state.poisRaw = res ? res.pois : null; state.pois = placePOIs(state.poisRaw, state.track);
-    state.places = res && { places: res.places, summits: res.summits };
     if (state.samples) { drawMap(false); renderNotes(); renderTable(); }
   });
   $("#eleHint").textContent = `${r1(tr.total / 1000)} km · ` + (tr.eleSrc === "file" ? "elevation from file" : tr.eleSrc === "dem" ? "elevation from terrain model" : "no elevation available (flat pacing)");
@@ -379,6 +384,8 @@ function drawPreview() {
   const v = $("#imgView"), dl = v.querySelector('[data-act="download"]');
   v.querySelector("img").src = dataUrl;
   dl.href = card.url; dl.setAttribute("download", file.name);
+  if (state.places === undefined) $("#imgHint").textContent = "Adding town names… (the picture updates by itself)";
+  else if ($("#imgHint").dataset.base) $("#imgHint").textContent = $("#imgHint").dataset.base;
   return file;
 }
 $("#shareImg").addEventListener("click", () => {
@@ -392,7 +399,8 @@ $("#shareImg").addEventListener("click", () => {
   act("copy").hidden = !canCopy || phone;
   act("download").hidden = phone && canFiles;
   $("#cardTitle").value = state.name || "";
-  $("#imgHint").textContent = canFiles ? "Share it to a chat, or save it." : phone ? "Press and hold the image to save or share it." : "Copy it and paste into a chat (e.g. WhatsApp Web), or download it.";
+  $("#imgHint").dataset.base = canFiles ? "Share it to a chat, or save it." : phone ? "Press and hold the image to save or share it." : "Copy it and paste into a chat (e.g. WhatsApp Web), or download it.";
+  $("#imgHint").textContent = state.places === undefined ? "Adding town names… (the picture updates by itself)" : $("#imgHint").dataset.base;
   v.hidden = false;
   (canFiles ? act("share") : v.querySelector("[data-close]")).focus();
 });

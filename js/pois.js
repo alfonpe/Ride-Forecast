@@ -5,7 +5,7 @@ import { rad } from "./util.js";
    One query along a simplified copy of the route, in the background; if both servers are busy the
    feature quietly stays off. Results are placed on whichever direction/start is being ridden. */
 
-const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
 export const POI = { water: "Drinking water", cafe: "Café or bakery", shop: "Shop or petrol station" };
 
 export function poiKind(t = {}) {
@@ -17,16 +17,15 @@ export function poiKind(t = {}) {
   return null;
 }
 
-// One query for everything: water/cafés/shops within `radius` of the route line (simplified to ≤ ~350 vertices),
-// named peaks and passes right on it (to name the high point), and towns within 10 km (as references on the share card).
+// Water/cafés/shops within `radius` of the route line (simplified to ≤ ~300 vertices). Exact tag filters only:
+// a key-pattern filter makes the server scan every object in the area and time out on long routes.
 export function overpassQuery(pts, radius = 150) {
   const flat = pts.map(p => ({ lat: p.lat, lon: p.lon, ele: 0 }));
-  const line = (tol, max) => { let l = simplify(flat, tol, 1e9); while (l.length > max) { tol *= 1.6; l = simplify(flat, tol, 1e9); } return l.map(p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(","); };
-  const near = line(30, 350), wide = line(150, 120);
-  return `[out:json][timeout:25];(nwr(around:${radius},${near})` +
-    `[~"^(amenity|shop|man_made)$"~"^(drinking_water|water_point|fountain|water_tap|cafe|bakery|convenience|fuel)$"];` +
-    `node(around:400,${near})[natural~"^(peak|saddle)$"][name];node(around:400,${near})[mountain_pass=yes][name];` +
-    `node(around:10000,${wide})[place~"^(city|town|village)$"][name];);out center tags qt;`;
+  let tol = 30, l = simplify(flat, tol, 1e9);
+  while (l.length > 300) { tol *= 1.6; l = simplify(flat, tol, 1e9); }
+  const near = `around:${radius},${l.map(p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(",")}`;
+  return `[out:json][timeout:25];(nwr(${near})[amenity~"^(drinking_water|water_point|fountain|cafe|fuel)$"];` +
+    `nwr(${near})[shop~"^(bakery|convenience)$"];node(${near})[man_made=water_tap];);out center tags qt;`;
 }
 
 export function parsePOIs(elements) {
@@ -49,7 +48,7 @@ export function parseOverpass(elements) {
   return { pois: parsePOIs(elements), places, summits };
 }
 
-export async function fetchPOIs(pts) {
+export async function fetchPOIs(pts, retryAfter = 20000) {
   const body = "data=" + encodeURIComponent(overpassQuery(pts));
   for (const url of OVERPASS) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 30000);
@@ -59,6 +58,8 @@ export async function fetchPOIs(pts) {
       if (r.ok) return parseOverpass((await r.json()).elements || []);
     } catch (e) { /* busy or offline: try the next server */ } finally { clearTimeout(timer); }
   }
+  // public Overpass servers are often saturated for a minute or two: one more round, a little later
+  if (retryAfter) { await new Promise(r => setTimeout(r, retryAfter)); return fetchPOIs(pts, 0); }
   return null;
 }
 

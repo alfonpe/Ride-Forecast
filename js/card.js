@@ -77,22 +77,39 @@ export function drawCard() {
   g.fillStyle = muted; g.font = `500 20px ${BODY}`; g.fillText(`${r0(minOf(S, "ws"))}–${r0(maxOf(S, "ws"))} km/h`, cx, cy + 92);
   g.textAlign = "left";
 
-  // reference labels: towns, the furthest point, the high point; moved or skipped if they'd overlap
+  // reference labels: towns, the furthest point, the high point. A label goes where it touches neither the route
+  // (at its drawn thickness), other labels, the wind badge nor the key; tried at growing distances, else skipped.
   const taken = [[cx - 70, cy - 42, 140, 145], [box.x, box.y + box.h - 52, box.w, 52]];
-  const free = ([x, yy, w, h]) => x >= box.x + 8 && x + w <= box.x + box.w - 8 && yy >= box.y + 8 && yy + h <= box.y + box.h - 8 &&
-    !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h);
+  for (const i of [0, tr.pts.length - 1]) { const [a, b] = P(i); taken.push([a - 21, b - 21, 42, 42]); } // the S and F markers
+  const routePx = [];
+  for (let k = 0; k < S.length - 1; k++) {
+    const hw = width(S[k]) / 2 + 5;
+    for (let i = S[k].i; i <= Math.min(S[k + 1].i, tr.pts.length - 1); i++) { const [a, b] = P(i); routePx.push([a, b, hw]); }
+  }
+  const hitsLine = ([x, yy, w, h]) => routePx.some(([a, b, hw]) => a > x - hw && a < x + w + hw && b > yy - hw && b < yy + h + hw);
+  const free = r => { const [x, yy, w, h] = r; return x >= box.x + 8 && x + w <= box.x + box.w - 8 && yy >= box.y + 8 && yy + h <= box.y + box.h - 8 &&
+    !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h) && !hitsLine(r); };
   g.font = `600 23px ${BODY}`;
   for (const l of labels) {
-    const [px, py] = XY(l.lat, l.lon), tw = g.measureText(l.text).width;
-    const spot = [[px + 14, py - 12], [px - 14 - tw, py - 12], [px - tw / 2, py - 40], [px - tw / 2, py + 14]]
-      .map(([x, yy]) => [x, yy, tw, 26]).find(free);
+    const [px, py] = XY(l.lat, l.lon), tw = g.measureText(l.text).width, th = 26;
+    let spot = null;
+    for (const d of [12, 30, 52]) {
+      spot = [[px + d, py - th / 2], [px - d - tw, py - th / 2], [px - tw / 2, py - d - th], [px - tw / 2, py + d],
+        [px + d * .7, py - d * .7 - th], [px - d * .7 - tw, py - d * .7 - th], [px + d * .7, py + d * .7], [px - d * .7 - tw, py + d * .7]]
+        .map(([x, yy]) => [x, yy, tw, th]).find(free);
+      if (spot) break;
+    }
     if (!spot) continue;
     taken.push(spot);
     g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 3;
     g.beginPath();
     if (l.type === "high") { g.moveTo(px, py - 9); g.lineTo(px + 9, py + 7); g.lineTo(px - 9, py + 7); g.closePath(); } else g.arc(px, py, 6, 0, 7);
     g.fill(); g.stroke();
-    g.lineWidth = 6; g.lineJoin = "round"; g.strokeText(l.text, spot[0], spot[1] + 20); g.fillText(l.text, spot[0], spot[1] + 20);
+    // a hairline from the dot when the label had to move away from it
+    const [sx, sy] = [Math.max(spot[0], Math.min(px, spot[0] + tw)), Math.max(spot[1], Math.min(py, spot[1] + th))];
+    if (Math.hypot(sx - px, sy - py) > 22) { g.strokeStyle = muted; g.lineWidth = 1.5; g.beginPath(); g.moveTo(px, py); g.lineTo(sx, sy); g.stroke(); }
+    g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 6; g.lineJoin = "round";
+    g.strokeText(l.text, spot[0], spot[1] + 20); g.fillText(l.text, spot[0], spot[1] + 20);
   }
 
   const dot = (i, col, label) => {
