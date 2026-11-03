@@ -29,40 +29,44 @@ async function pool(items, n, fn) {
 // Calls onUpdate as each answer arrives (the card redraws progressively). Each lookup gives up after 8 s and
 // the whole job after `capMs`; whatever arrived is used. Results are kept on the device for 30 days: a complete
 // one is reused as is, a partial one is shown at once and completed in the background.
-export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 20000 } = {}) {
+export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 12000, eleReady = null } = {}) {
   const id = routeKey(tr), hit = stored("rf-places", 30), had = hit && hit.id === id ? hit.res : null;
   if (had) { onUpdate(had); if (!had.partial) return had; } // shown at once; a partial one is completed below
   const at = [];
   // every 14 km, 12 km around: any town within 5 km of the road is within 7 + 5 km of a lookup point
   for (let m = 0; m < tr.total; m += 14000) at.push(locate(tr, m, null));
   at.push(locate(tr, tr.total, null));
-  const seen = new Set(), places = [];
-  let summits = [], answered = 0, failed = 0, complete = false;
+  const seen = new Set(), places = had ? had.places.slice() : [];
+  for (const q of places) seen.add(`${q.name}|${q.lat.toFixed(2)}|${q.lon.toFixed(2)}`);
+  let summits = had ? had.summits : [], answered = 0, failed = 0, complete = false, finished = false, result = null;
   const get = url => fetchJSON(url, { timeout: 8000, what: "The place-name service", retries: 1 }).then(j => { answered++; return j; }, () => { failed++; return null; });
   const update = () => onUpdate({ places: places.slice(), summits });
-  const towns = pool(at, 2, p => get(`${PHOTON}?lat=${p.lat.toFixed(4)}&lon=${p.lon.toFixed(4)}&radius=12&limit=20${KINDS}`).then(r => {
+  const keep = () => { if (result && !result.partial || places.length > (had ? had.places.length : 0)) store("rf-places", { id, res: { places: places.slice(), summits, partial: !result || result.partial } }); };
+  const towns = pool(at, 3, p => get(`${PHOTON}?lat=${p.lat.toFixed(4)}&lon=${p.lon.toFixed(4)}&radius=12&limit=20${KINDS}`).then(r => {
     for (const q of photonFeatures(r, f => f.osm_key === "place")) {
       const k = `${q.name}|${q.lat.toFixed(2)}|${q.lon.toFixed(2)}`;
       if (!seen.has(k)) { seen.add(k); places.push(q); }
     }
     if (r) update();
   }));
-  // passes, saddles and peaks around the high point (8 km): the card names the high point after the pass it belongs to
-  let peaks = Promise.resolve();
-  if (tr.hasEle) {
+  // the summit's pass name is a bonus: it updates the card whenever it lands and never holds up "done"
+  (async () => {
+    await eleReady;
+    if (!tr.hasEle) return;
     let hi = 0;
     for (let i = 1; i < tr.ele.length; i++) if (tr.ele[i] > tr.ele[hi]) hi = i;
     const p = tr.pts[hi];
-    peaks = get(`${PHOTON}?lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&radius=8&limit=25&osm_tag=natural:peak&osm_tag=natural:saddle&osm_tag=mountain_pass`).then(r => {
-      summits = photonFeatures(r, q => q.osm_key === "natural" || q.osm_key === "mountain_pass")
-        .map(q => ({ ...q, kind: q.key === "mountain_pass" || q.place === "saddle" ? "pass" : "peak" }));
-      if (r) update();
-    });
-  }
-  await Promise.race([Promise.all([towns, peaks]).then(() => { complete = true; }), new Promise(r => setTimeout(r, capMs))]);
-  if (!answered) return had;
-  const res = { places: places.slice(), summits, partial: !complete || failed > 0 };
-  if (had && res.partial && res.places.length < had.places.length) return had; // keep the better of the two
-  store("rf-places", { id, res });
-  return res;
+    const r = await get(`${PHOTON}?lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&radius=8&limit=25&osm_tag=natural:peak&osm_tag=natural:saddle&osm_tag=mountain_pass`);
+    if (!r) return;
+    summits = photonFeatures(r, q => q.osm_key === "natural" || q.osm_key === "mountain_pass")
+      .map(q => ({ ...q, kind: q.key === "mountain_pass" || q.place === "saddle" ? "pass" : "peak" }));
+    update();
+    if (finished) keep();
+  })();
+  await Promise.race([towns.then(() => { complete = true; }), new Promise(r => setTimeout(r, capMs))]);
+  finished = true;
+  if (!answered && !had) return null;
+  result = { places: places.slice(), summits, partial: !complete || failed > 0 };
+  keep();
+  return result;
 }

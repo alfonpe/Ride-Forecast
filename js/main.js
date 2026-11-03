@@ -77,7 +77,7 @@ async function run(fit) {
       s.air = Math.max(0, s.spd + s.head);
       s.bike = riderFeels(s.temp, s.air, s.feels);
     });
-    Object.assign(state, { samples: S, startMs, endMs, sim, locs, opts: o, ens: undefined, air: undefined, hazards: detectHazards(S, tr) });
+    Object.assign(state, { samples: S, samplesFor: tr, startMs, endMs, sim, locs, opts: o, ens: undefined, air: undefined, hazards: detectHazards(S, tr) });
     state.sun = { rise: closest(locs[0].daily && locs[0].daily.sunrise, startMs), set: closest(locs[locs.length - 1].daily && locs[locs.length - 1].daily.sunset, endMs) };
     state.best = scoreStarts(tr, S, locs, o, dayWall, win);
     // the same ride the other way round, on the weather already downloaded
@@ -85,6 +85,7 @@ async function run(fit) {
     try { const alt = altTrack(); state.dirCompare = compareReversed(tr, S, alt, makeSamples(alt), locs, startMs, o); } catch (e) { /* comparison is optional */ }
     state.hoverKm = null;
     renderAll(fit);
+    redrawCard();
     setStatus(arrive ? `Leave at ${fmtTime(startMs)} (${fmtDay(startMs)}) to be home by ${fmtTime(endMs)}. Forecast for ${S.length} checkpoints.`
       : `Forecast for ${S.length} checkpoints, ${fmtDay(startMs)} ${fmtTime(startMs)} → ${fmtTime(endMs)}.`);
     updateTimeHint();
@@ -208,23 +209,18 @@ async function useRoute(route, label, knownTz, { keepName = false } = {}) {
   $("#routeName").textContent = state.name || "Route";
   if (label) $("#fileLabel").textContent = label;
   setStatus("Preparing the route…");
-  const [tz] = await Promise.all([
-    knownTz || resolveTZ(tr.pts[0]),
-    tr.hasEle ? null : fetchElevation(tr).catch(() => null)
-  ]);
-  if (id !== loadSeq) return;
-  zone.name = tz; showTZ();
+  // town names and water points start right away: they need only the route, not the time zone or the weather
+  const dem = tr.hasEle ? null : fetchElevation(tr).catch(() => null);
   state.poisRaw = state.pois = undefined;
   state.places = undefined; state.placesDone = false; // loading
-  const redrawCard = () => { if (card && !$("#imgView").hidden) drawPreview(); }; // the card may be open already
-  fetchPlaces(tr, partial => { if (id === loadSeq) { state.places = partial; redrawCard(); } }).catch(() => null).then(res => {
+  fetchPlaces(tr, partial => { if (id === loadSeq) { state.places = partial; redrawCard(); } }, { eleReady: dem }).catch(() => null).then(res => {
     if (id !== loadSeq) return;
     state.places = res; state.placesDone = true;
     redrawCard();
   });
   const useWater = res => {
     state.poisRaw = res ? res.pois : null; state.pois = placePOIs(state.poisRaw, state.track);
-    if (state.samples) { drawMap(false); renderNotes(); renderTable(); }
+    if (state.samples && state.samplesFor === state.track) { drawMap(false); renderNotes(); renderTable(); }
   };
   const kept = stored("rf-pois", 30), rk = routeKey(tr);
   if (kept && kept.id === rk) useWater(kept.res);
@@ -233,6 +229,9 @@ async function useRoute(route, label, knownTz, { keepName = false } = {}) {
     if (res) store("rf-pois", { id: rk, res });
     useWater(res);
   });
+  const [tz] = await Promise.all([knownTz || resolveTZ(tr.pts[0]), dem]);
+  if (id !== loadSeq) return;
+  zone.name = tz; showTZ();
   $("#eleHint").textContent = `${r1(tr.total / 1000)} km · ` + (tr.eleSrc === "file" ? "elevation from file" : tr.eleSrc === "dem" ? "elevation from terrain model" : "no elevation available (flat pacing)");
   run(true);
 }
@@ -383,6 +382,12 @@ $("#share").addEventListener("click", async () => {
 // (Each action is its own tap, so the share sheet's "must come from a gesture" rule always holds.)
 let card = null;
 function hideImage() { $("#imgView").hidden = true; if (card) URL.revokeObjectURL(card.url); card = null; }
+// the open preview follows late data (names, a finished forecast); a failed redraw must not leave it stuck
+function redrawCard() {
+  if (!card || $("#imgView").hidden) return;
+  if (state.samplesFor !== state.track) { $("#imgHint").textContent = "Updating the forecast for this route…"; return; }
+  try { drawPreview(); } catch (e) { $("#imgHint").textContent = cardHint(); }
+}
 function cardHint() {
   const base = $("#imgHint").dataset.base || "";
   if (!state.placesDone) return "Adding town names… (the picture updates by itself)";
@@ -402,6 +407,7 @@ function drawPreview() {
 }
 $("#shareImg").addEventListener("click", () => {
   if (!state.samples) return;
+  if (state.samplesFor !== state.track) { setStatus("One moment: the forecast for this route is still being worked out."); return; }
   const file = drawPreview();
   let canFiles = false;
   try { canFiles = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { /* unsupported */ }
