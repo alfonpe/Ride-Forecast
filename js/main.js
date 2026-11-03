@@ -221,6 +221,7 @@ async function useRoute(route, label, knownTz, { keepName = false } = {}) {
   const useWater = res => {
     state.poisRaw = res ? res.pois : null; state.pois = placePOIs(state.poisRaw, state.track);
     if (state.samples && state.samplesFor === state.track) { drawMap(false); renderNotes(); renderTable(); }
+    redrawCard(); // its water tile
   };
   const kept = stored("rf-pois", 30), rk = routeKey(tr);
   if (kept && kept.id === rk) useWater(kept.res);

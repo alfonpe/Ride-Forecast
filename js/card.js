@@ -90,10 +90,14 @@ export function drawCard() {
   const free = r => { const [x, yy, w, h] = r; return x >= box.x + 8 && x + w <= box.x + box.w - 8 && yy >= box.y + 8 && yy + h <= box.y + box.h - 8 &&
     !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h) && !hitsLine(r); };
   g.font = `600 23px ${BODY}`;
-  for (const l of labels) {
+  // every marker's spot is reserved before any text is placed, so no text covers another place's dot
+  for (const l of labels) { const [px, py] = XY(l.lat, l.lon); taken.push([px - 9, py - 10, 18, 19]); }
+  // most important first, so they get the best spots: the summit, then the turnaround, then towns
+  const rank = l => l.type === "high" ? 0 : l.far ? 1 : 2;
+  for (const l of [...labels].sort((a, b) => rank(a) - rank(b))) {
     const [px, py] = XY(l.lat, l.lon), tw = g.measureText(l.text).width, th = 26;
     let spot = null;
-    for (const d of [12, 30, 52]) {
+    for (const d of [12, 30, 52, 80, 115]) {
       spot = [[px + d, py - th / 2], [px - d - tw, py - th / 2], [px - tw / 2, py - d - th], [px - tw / 2, py + d],
         [px + d * .7, py - d * .7 - th], [px - d * .7 - tw, py - d * .7 - th], [px + d * .7, py + d * .7], [px - d * .7 - tw, py + d * .7]]
         .map(([x, yy]) => [x, yy, tw, th]).find(free);

@@ -43,21 +43,31 @@ export function parseOverpass(elements) {
     const t = e.tags || {}, p = pos(e);
     if (!t.name || !isFinite(p.lat) || !isFinite(p.lon)) continue;
     if (/^(city|town|village)$/.test(t.place)) places.push({ name: t.name, place: t.place, pop: parseInt(String(t.population || "").replace(/\D/g, ""), 10) || null, ...p });
-    else if (/^(peak|saddle)$/.test(t.natural) || t.mountain_pass === "yes") summits.push({ name: t.name, ele: parseFloat(t.ele) || null, ...p });
+    else if (/^(peak|saddle)$/.test(t.natural) || t.mountain_pass === "yes") {
+      const road = t.mountain_pass === "yes"; // same shape as Photon's: key / place (kind) / kind
+      summits.push({ name: t.name, ele: parseFloat(t.ele) || null, key: road ? "mountain_pass" : "natural", place: road ? "yes" : t.natural, kind: road || t.natural === "saddle" ? "pass" : "peak", ...p });
+    }
   }
   return { pois: parsePOIs(elements), places, summits };
 }
 
-export async function fetchPOIs(pts, retryAfter = 20000) {
-  const body = "data=" + encodeURIComponent(overpassQuery(pts));
+// one Overpass query, tried on each server in turn; the elements, or null if none answered
+export async function overpass(query, timeout = 30000) {
+  const body = "data=" + encodeURIComponent(query);
   for (const url of OVERPASS) {
-    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 30000);
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), timeout);
     try {
       // form-encoded POST is a "simple" request: no CORS preflight
       const r = await fetch(url, { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: ctl.signal });
-      if (r.ok) return parseOverpass((await r.json()).elements || []);
+      if (r.ok) return (await r.json()).elements || [];
     } catch (e) { /* busy or offline: try the next server */ } finally { clearTimeout(timer); }
   }
+  return null;
+}
+
+export async function fetchPOIs(pts, retryAfter = 20000) {
+  const els = await overpass(overpassQuery(pts));
+  if (els) return parseOverpass(els);
   // public Overpass servers are often saturated for a minute or two: one more round, a little later
   if (retryAfter) { await new Promise(r => setTimeout(r, retryAfter)); return fetchPOIs(pts, 0); }
   return null;

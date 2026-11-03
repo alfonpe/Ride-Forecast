@@ -1,5 +1,7 @@
 import { locate, routeKey } from "./geo.js";
 import { fetchJSON, store, stored } from "./net.js";
+import { overpass, parseOverpass } from "./pois.js";
+import { simplify } from "./share.js";
 
 /* ---------- town and pass names for the share card (Photon, OpenStreetMap-based search) ----------
    A few small "what's near here" lookups along the route are faster and far more reliable than one big
@@ -29,6 +31,17 @@ async function pool(items, n, fn) {
 // Calls onUpdate as each answer arrives (the card redraws progressively). Each lookup gives up after 8 s and
 // the whole job after `capMs`; whatever arrived is used. Results are kept on the device for 30 days: a complete
 // one is reused as is, a partial one is shown at once and completed in the background.
+// Overpass version of the same lookup: towns within 5 km of the road (with population, so the biggest is known),
+// road passes within 2 km and peaks/saddles within 600 m, along a simplified line
+export function overpassPlacesQuery(pts) {
+  const flat = pts.map(p => ({ lat: p.lat, lon: p.lon, ele: 0 }));
+  let tol = 80, l = simplify(flat, tol, 1e9);
+  while (l.length > 150) { tol *= 1.6; l = simplify(flat, tol, 1e9); }
+  const line = l.map(p => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`).join(",");
+  return `[out:json][timeout:25];(node(around:5000,${line})[place~"^(city|town|village)$"][name];` +
+    `node(around:2000,${line})[mountain_pass=yes][name];node(around:600,${line})[natural~"^(peak|saddle)$"][name];);out tags qt;`;
+}
+
 export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 12000, eleReady = null } = {}) {
   const id = routeKey(tr), hit = stored("rf-places", 30), had = hit && hit.id === id ? hit.res : null;
   if (had) { onUpdate(had); if (!had.partial) return had; } // shown at once; a partial one is completed below
@@ -64,6 +77,17 @@ export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 12000, eleR
     if (finished) keep();
   })();
   await Promise.race([towns.then(() => { complete = true; }), new Promise(r => setTimeout(r, capMs))]);
+  // Photon can be unreachable from some browsers (blocked by a privacy extension, or throttled): ask Overpass instead
+  if (!places.length) {
+    const els = await overpass(overpassPlacesQuery(tr.pts), 25000);
+    if (els) {
+      const r = parseOverpass(els);
+      places.push(...r.places);
+      if (r.summits.length) summits = r.summits;
+      answered++; complete = true; failed = 0;
+      update();
+    }
+  }
   finished = true;
   if (!answered && !had) return null;
   result = { places: places.slice(), summits, partial: !complete || failed > 0 };

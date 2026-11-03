@@ -52,3 +52,23 @@ test("remembered names: complete ones are reused without asking again", async ()
     assert.deepEqual(again.places.map(p => p.name), first.places.map(p => p.name));
   } finally { globalThis.fetch = realFetch; delete globalThis.localStorage; }
 });
+
+test("when Photon is unreachable, town and pass names come from Overpass", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes("photon")) throw new TypeError("blocked by an extension");
+    assert.match(decodeURIComponent(opts.body), /around:5000,/);
+    return new Response(JSON.stringify({ elements: [
+      { type: "node", lat: at(3), lon: -0.37, tags: { place: "town", name: "Popular", population: "12000" } },
+      { type: "node", lat: at(6), lon: -0.36, tags: { mountain_pass: "yes", name: "Port Test" } }
+    ] }), { status: 200 });
+  };
+  try {
+    cache.clear();
+    const updates = [];
+    const res = await fetchPlaces(northTrack(9.5), u => updates.push(u.places.length), { capMs: 3000 });
+    assert.deepEqual(res.places.map(p => [p.name, p.pop]), [["Popular", 12000]]);
+    assert.deepEqual(res.summits.map(s => [s.name, s.key, s.kind]), [["Port Test", "mountain_pass", "pass"]]);
+    assert.ok(!res.partial && updates.at(-1) === 1);
+  } finally { globalThis.fetch = realFetch; }
+});

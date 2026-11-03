@@ -56,7 +56,7 @@ export function pickLabels(tr, places = [], summits = [], { every = 25, within =
   const far = tr.pts[fi];
   if (fd > 3000 && !out.some(o => hav(o, far) < 4000)) {
     const q = near.filter(c => hav(c, far) <= within * 1000).sort((a, b) => hav(a, far) - hav(b, far))[0];
-    if (q && !out.some(o => o.text === q.name)) out.push({ type: "place", lat: q.lat, lon: q.lon, text: q.name, km: q.km });
+    if (q && !out.some(o => o.text === q.name)) out.push({ type: "place", far: true, lat: q.lat, lon: q.lon, text: q.name, km: q.km });
   }
   // the high point, only when it's a real climb above the start, named after the pass it belongs to
   if (tr.hasEle) {
