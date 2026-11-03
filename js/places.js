@@ -38,14 +38,16 @@ export async function fetchPlaces(tr) {
     const k = `${q.name}|${q.lat.toFixed(2)}|${q.lon.toFixed(2)}`;
     if (!seen.has(k)) { seen.add(k); places.push(q); }
   }
-  // a name for the high point: the nearest peak, saddle or pass within ~600 m
+  // passes, saddles and peaks around the high point (8 km): the card names the high point after one that's
+  // really there, and labels the highest pass the road actually goes over
   let summits = [];
   if (tr.hasEle) {
     let hi = 0;
     for (let i = 1; i < tr.ele.length; i++) if (tr.ele[i] > tr.ele[hi]) hi = i;
     const p = tr.pts[hi];
-    summits = photonFeatures(await get(`${PHOTON}?lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&radius=0.6&limit=3&osm_tag=natural:peak&osm_tag=natural:saddle&osm_tag=mountain_pass`),
-      q => q.osm_key === "natural" || q.osm_key === "mountain_pass");
+    summits = photonFeatures(await get(`${PHOTON}?lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&radius=8&limit=25&osm_tag=natural:peak&osm_tag=natural:saddle&osm_tag=mountain_pass`),
+      q => q.osm_key === "natural" || q.osm_key === "mountain_pass")
+      .map(q => ({ ...q, kind: q.key === "mountain_pass" || q.place === "saddle" ? "pass" : "peak" }));
   }
   return { places, summits };
 }

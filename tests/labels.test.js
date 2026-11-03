@@ -59,3 +59,22 @@ test("Photon results become places (bilingual names shortened) or summits", asyn
   assert.deepEqual(photonFeatures(json, p => p.osm_key === "natural").map(p => p.name), ["Garbí"]);
   assert.deepEqual(photonFeatures(null), []);
 });
+
+test("passes: label the highest one the road crosses; ignore passes on other roads", () => {
+  const tr = northTrack(30, 10, m => 100 + 600 * Math.sin(m / 30000 * Math.PI)); // summit at km 15
+  const L = pickLabels(tr, [], [
+    { name: "Coll Baix", kind: "pass", ...east(5, 0.1) },      // crossed, lower
+    { name: "Coll Alt", kind: "pass", ...east(9, 0.15) },      // crossed, higher: this one
+    { name: "Port Llunyà", kind: "pass", ...east(13, 1.6) }    // 1.6 km off the road: another road
+  ]);
+  const high = L.find(l => l.type === "high"), pass = L.find(l => l.type === "pass");
+  assert.match(high.text, /^7\d\d m$/, "no pass at the summit itself, so just the height");
+  assert.match(pass.text, /^Coll Alt · \d+ m$/);
+  assert.ok(!L.some(l => /Llunyà/.test(l.text)));
+});
+
+test("a crossed pass right at the high point names it (once)", () => {
+  const tr = northTrack(30, 10, m => 100 + 600 * Math.sin(m / 30000 * Math.PI));
+  const L = pickLabels(tr, [], [{ name: "Port del Cim", kind: "pass", ...east(15.9, 0.1) }]);
+  assert.deepEqual(L.filter(l => l.type !== "place").map(l => l.text.replace(/\d+/, "N")), ["Port del Cim · N m"]);
+});

@@ -31,13 +31,21 @@ export function pickLabels(tr, places = [], summits = [], { every = 25, within =
     const q = near.filter(c => hav(c, far) <= within * 1000).sort((a, b) => hav(a, far) - hav(b, far))[0];
     if (q && !out.some(o => o.text === q.name)) out.push({ type: "place", lat: q.lat, lon: q.lon, text: q.name, km: q.km });
   }
-  // the high point, only when it's a real climb above the start; named after a peak or pass right there
+  // the high point, only when it's a real climb above the start; and the highest pass the road goes over
   if (tr.hasEle) {
     let hi = 0;
     for (let i = 1; i < tr.ele.length; i++) if (tr.ele[i] > tr.ele[hi]) hi = i;
     if (tr.ele[hi] - tr.ele[0] >= climb) {
-      const p = tr.pts[hi], s = summits.filter(q => hav(q, p) <= 500).sort((a, b) => hav(a, p) - hav(b, p))[0];
-      out.push({ type: "high", lat: p.lat, lon: p.lon, text: `${s ? s.name + " · " : ""}${Math.round(tr.ele[hi])} m`, km: tr.cum[hi] / 1000 });
+      const p = tr.pts[hi], hiKm = tr.cum[hi] / 1000;
+      // passes and saddles the route crosses: within 250 m of the road (one 1.5 km off is on another road)
+      const crossed = summits.filter(q => q.kind === "pass" || q.place === "saddle" || q.key === "mountain_pass")
+        .map(q => ({ ...q, ...onTrack(tr, q) })).filter(q => q.off <= 250);
+      // the high point takes a name only from something really there: a summit within 500 m, or a crossed pass within 1.5 km of road
+      const here = summits.filter(q => hav(q, p) <= 500).sort((a, b) => hav(a, p) - hav(b, p))[0]
+        || crossed.filter(q => Math.abs(q.km - hiKm) <= 1.5).sort((a, b) => Math.abs(a.km - hiKm) - Math.abs(b.km - hiKm))[0];
+      out.push({ type: "high", lat: p.lat, lon: p.lon, text: `${here ? here.name + " · " : ""}${Math.round(tr.ele[hi])} m`, km: hiKm });
+      const top = crossed.filter(q => !here || q.name !== here.name).sort((a, b) => tr.ele[b.i] - tr.ele[a.i])[0];
+      if (top) out.push({ type: "pass", lat: top.lat, lon: top.lon, text: `${top.name} · ${Math.round(tr.ele[top.i])} m`, km: top.km });
     }
   }
   return out.sort((a, b) => a.km - b.km);
