@@ -83,3 +83,16 @@ test("home-by with real pacing and wind", async () => {
   const ms = startForArrival(target, dur, target - dur(target) * 1000);
   assert.ok(Math.abs(ms + dur(ms) * 1000 - target) < 15e3);
 });
+
+test("time split: climbing, flat and descending add up to the moving time", async () => {
+  const { timeSplit } = await import("../js/pacing.js");
+  // 10 km flat, 10 km up at 5 %, 10 km down at 5 %
+  const tr = northTrack(30, 10, m => m < 10000 ? 100 : m < 20000 ? 100 + (m - 10000) * 0.05 : 600 - (m - 20000) * 0.05);
+  const sim = run(tr);
+  const sp = timeSplit(tr, sim.spd);
+  assert.ok(Math.abs(sp.climb.t + sp.flat.t + sp.down.t - sim.moving) < 1, "covers the whole ride");
+  for (const k of ["climb", "flat", "down"]) assert.ok(Math.abs(sp[k].d - 10000) < 400, `${k} ≈ 10 km: ${Math.round(sp[k].d)}`);
+  assert.ok(sp.climb.t > sp.flat.t && sp.flat.t > sp.down.t, "slow up, fast down");
+  const flatOnly = timeSplit(northTrack(10), run(northTrack(10)).spd);
+  assert.equal(flatOnly.climb.t + flatOnly.down.t, 0);
+});

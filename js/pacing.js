@@ -77,3 +77,23 @@ export function startForArrival(target, durAt, guess) {
   }
   return ms;
 }
+
+// Where the moving time goes: climbing (≥ +3 %), descending (≤ −3 %) and flat, judged on the gradient over
+// ±100 m so GPS/elevation noise doesn't flip short stretches. `spd` is the simulated speed per segment (m/s).
+export function timeSplit(tr, spd, { grade = 0.03, win = 100 } = {}) {
+  const out = { climb: { t: 0, d: 0 }, flat: { t: 0, d: 0 }, down: { t: 0, d: 0 } }, n = tr.pts.length, cum = tr.cum;
+  for (let i = 1, lo = 0, hi = 0; i < n; i++) {
+    const d = cum[i] - cum[i - 1];
+    if (!(d > 0) || !(spd[i] > 0)) continue;
+    let g = 0;
+    if (tr.hasEle) {
+      while (cum[i] - cum[lo] > win) lo++;
+      if (hi < i) hi = i;
+      while (hi + 1 < n && cum[hi + 1] - cum[i] <= win) hi++;
+      g = (tr.ele[hi] - tr.ele[lo]) / ((cum[hi] - cum[lo]) || 1);
+    }
+    const k = g >= grade ? "climb" : g <= -grade ? "down" : "flat";
+    out[k].t += d / spd[i]; out[k].d += d;
+  }
+  return out;
+}

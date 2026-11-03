@@ -2,6 +2,7 @@ import { renderBest, renderCharts } from "./charts.js";
 import { compass, locate } from "./geo.js";
 import { HAZ } from "./hazards.js";
 import { isLoop } from "./orient.js";
+import { timeSplit } from "./pacing.js";
 import { waterGap } from "./pois.js";
 import { nearestSample, setHover } from "./hover.js";
 import { arrowSvg, icon, wmo } from "./icons.js";
@@ -225,9 +226,25 @@ export function renderDirection() {
   $("#routeName").textContent = (state.name || "Route") + (o.rev ? " (reversed)" : "") + (o.s ? " · new start" : "");
 }
 
+// under the speed chart: uphill / flat / downhill time (bar + tiles), plus what wind and stops add
+export function renderTimeBreak() {
+  const tr = state.track, sim = state.sim, sp = timeSplit(tr, sim.spd);
+  const short = t => t < 3600 ? `${r0(t / 60)} min` : fmtDur(t);
+  const parts = [["climb", "Uphill", "--warm"], ["flat", "Flat", "--elev"], ["down", "Downhill", "--cool"]].filter(([k]) => sp[k].t >= 60);
+  const seg = [...parts.map(([k, , c]) => [sp[k].t, c]), ...(sim.stopSec ? [[sim.stopSec, "--accent"]] : [])];
+  const tiles = parts.map(([k, name, c]) => [name, c, short(sp[k].t), `${r1(sp[k].d / 1000)} km<br>at ${r0(sp[k].d / sp[k].t * 3.6)} km/h`]);
+  if (sim.stopSec) tiles.push(["Stops", "--accent", short(sim.stopSec), `${state.opts.stops.length} planned<br>&nbsp;`]);
+  const w = sim.windMin;
+  tiles.push(["Wind", null, Math.abs(w) < 1 ? "±0 min" : `${w > 0 ? "+" : "−"}${r0(Math.abs(w))} min`, w >= 1 ? "slower than<br>a still day" : w <= -1 ? "faster than<br>a still day" : "about the same<br>as a still day"]);
+  $("#timeBreak").innerHTML =
+    `<span class="label">Where the time goes · ${short(sim.dur)} in total</span>` +
+    `<div class="tbar" role="img" aria-label="${tiles.filter(t => t[1]).map(t => `${t[0]} ${t[2]}`).join(", ")}">${seg.map(([t, c]) => `<i style="flex:${t};background:var(${c})"></i>`).join("")}</div>` +
+    `<div class="tstats">${tiles.map(([n, c, v, d]) => `<div><span class="k">${c ? `<b style="background:var(${c})"></b>` : ""}${n}</span><span class="v">${v}</span><span class="d">${d}</span></div>`).join("")}</div>`;
+}
+
 export function renderAll(fit) {
   resetTokens(); // theme may have changed since the last render
-  renderSummary(); renderHazards(); renderNotes(); drawMap(fit); renderCharts(); renderBest(); renderTable(); renderReadout(); renderDirection();
+  renderSummary(); renderHazards(); renderNotes(); drawMap(fit); renderCharts(); renderBest(); renderTable(); renderReadout(); renderDirection(); renderTimeBreak();
   const sc = $("#scrub"); sc.max = r1(state.track.total / 1000);
 }
 
