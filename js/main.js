@@ -3,7 +3,7 @@ import { cardFile, drawCard } from "./card.js";
 import { renderCharts } from "./charts.js";
 import { demoGPX } from "./demo.js";
 import { parseRouteFile, readRouteBytes, routesToGPX } from "./files.js";
-import { buildTrack, fetchElevation, locate, makeSamples } from "./geo.js";
+import { buildTrack, fetchElevation, locate, makeSamples, routeKey } from "./geo.js";
 import { detectHazards } from "./hazards.js";
 import { nearestSample, setHover } from "./hover.js";
 import { handleLink } from "./links.js";
@@ -11,6 +11,7 @@ import { drawMap, initMap, map } from "./map.js";
 import { parseStops, riderFeels, simulate, startForArrival } from "./pacing.js";
 import { renderAll, renderDirection, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ, updateTimeHint } from "./render.js";
 import { isLoop, orientTrack, remapKm } from "./orient.js";
+import { store, stored } from "./net.js";
 import { fetchPlaces } from "./places.js";
 import { fetchPOIs, placePOIs } from "./pois.js";
 import { planFromHash, shareURL } from "./share.js";
@@ -136,7 +137,6 @@ function nearestBaseIdx(latlng) {
 }
 
 /* ---------- route name: editable, remembered per route on this device ---------- */
-const routeKey = tr => { const a = tr.pts[0], b = tr.pts[tr.pts.length - 1], f = v => v.toFixed(4); return `${f(a.lat)},${f(a.lon)}|${f(b.lat)},${f(b.lon)}|${Math.round(tr.total / 100)}`; };
 function savedName(tr) {
   try { return (JSON.parse(localStorage.getItem("rf-names") || "{}"))[routeKey(tr)] || ""; } catch (e) { return ""; }
 }
@@ -215,16 +215,23 @@ async function useRoute(route, label, knownTz, { keepName = false } = {}) {
   if (id !== loadSeq) return;
   zone.name = tz; showTZ();
   state.poisRaw = state.pois = undefined;
-  state.places = undefined; // loading
-  fetchPlaces(tr).catch(() => null).then(res => {
+  state.places = undefined; state.placesDone = false; // loading
+  const redrawCard = () => { if (card && !$("#imgView").hidden) drawPreview(); }; // the card may be open already
+  fetchPlaces(tr, partial => { if (id === loadSeq) { state.places = partial; redrawCard(); } }).catch(() => null).then(res => {
     if (id !== loadSeq) return;
-    state.places = res;
-    if (card && !$("#imgView").hidden) drawPreview(); // the card was opened before the names arrived
+    state.places = res; state.placesDone = true;
+    redrawCard();
   });
-  fetchPOIs(tr.pts).then(res => {
-    if (id !== loadSeq) return;
+  const useWater = res => {
     state.poisRaw = res ? res.pois : null; state.pois = placePOIs(state.poisRaw, state.track);
     if (state.samples) { drawMap(false); renderNotes(); renderTable(); }
+  };
+  const kept = stored("rf-pois", 30), rk = routeKey(tr);
+  if (kept && kept.id === rk) useWater(kept.res);
+  else fetchPOIs(tr.pts).then(res => {
+    if (id !== loadSeq) return;
+    if (res) store("rf-pois", { id: rk, res });
+    useWater(res);
   });
   $("#eleHint").textContent = `${r1(tr.total / 1000)} km · ` + (tr.eleSrc === "file" ? "elevation from file" : tr.eleSrc === "dem" ? "elevation from terrain model" : "no elevation available (flat pacing)");
   run(true);
@@ -376,6 +383,12 @@ $("#share").addEventListener("click", async () => {
 // (Each action is its own tap, so the share sheet's "must come from a gesture" rule always holds.)
 let card = null;
 function hideImage() { $("#imgView").hidden = true; if (card) URL.revokeObjectURL(card.url); card = null; }
+function cardHint() {
+  const base = $("#imgHint").dataset.base || "";
+  if (!state.placesDone) return "Adding town names… (the picture updates by itself)";
+  if (!state.places) return `${base} Town names couldn't be loaded right now.`;
+  return state.places.partial ? `${base} Some town names couldn't be loaded right now.` : base;
+}
 function drawPreview() {
   const canvas = drawCard(), slug = (state.name || "ride").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "ride";
   const dataUrl = canvas.toDataURL("image/png"), file = cardFile(dataUrl, `ride-plan-${slug}.png`);
@@ -384,8 +397,7 @@ function drawPreview() {
   const v = $("#imgView"), dl = v.querySelector('[data-act="download"]');
   v.querySelector("img").src = dataUrl;
   dl.href = card.url; dl.setAttribute("download", file.name);
-  if (state.places === undefined) $("#imgHint").textContent = "Adding town names… (the picture updates by itself)";
-  else if ($("#imgHint").dataset.base) $("#imgHint").textContent = $("#imgHint").dataset.base;
+  $("#imgHint").textContent = cardHint();
   return file;
 }
 $("#shareImg").addEventListener("click", () => {
@@ -400,7 +412,7 @@ $("#shareImg").addEventListener("click", () => {
   act("download").hidden = phone && canFiles;
   $("#cardTitle").value = state.name || "";
   $("#imgHint").dataset.base = canFiles ? "Share it to a chat, or save it." : phone ? "Press and hold the image to save or share it." : "Copy it and paste into a chat (e.g. WhatsApp Web), or download it.";
-  $("#imgHint").textContent = state.places === undefined ? "Adding town names… (the picture updates by itself)" : $("#imgHint").dataset.base;
+  $("#imgHint").textContent = cardHint();
   v.hidden = false;
   (canFiles ? act("share") : v.querySelector("[data-close]")).focus();
 });

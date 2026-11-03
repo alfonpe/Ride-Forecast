@@ -126,3 +126,6 @@ export function makeSamples(tr) {
   }
   return out;
 }
+
+// identifies a route across visits (start, finish, length), for remembered names and cached lookups
+export const routeKey = tr => { const a = tr.pts[0], b = tr.pts[tr.pts.length - 1], f = v => v.toFixed(4); return `${f(a.lat)},${f(a.lon)}|${f(b.lat)},${f(b.lon)}|${Math.round(tr.total / 100)}`; };
