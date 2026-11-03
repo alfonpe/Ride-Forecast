@@ -6,7 +6,6 @@ import { parseRouteFile, readRouteBytes, routesToGPX } from "./files.js";
 import { buildTrack, fetchElevation, locate, makeSamples, routeKey } from "./geo.js";
 import { detectHazards } from "./hazards.js";
 import { nearestSample, setHover } from "./hover.js";
-import { handleLink } from "./links.js";
 import { drawMap, initMap, map } from "./map.js";
 import { parseStops, riderFeels, simulate, startForArrival } from "./pacing.js";
 import { renderAll, renderDirection, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ, updateTimeHint } from "./render.js";
@@ -15,6 +14,7 @@ import { store, stored } from "./net.js";
 import { fetchPlaces } from "./places.js";
 import { fetchPOIs, placePOIs } from "./pois.js";
 import { planFromHash, shareURL } from "./share.js";
+import { cachedShort, shorten } from "./shortlink.js";
 import { state } from "./state.js";
 import { fmtDay, fmtTime, msToWall, nextSaturday8, wallToMs, zone } from "./time.js";
 import { $, DAY, HOUR, deg, esc, r1, rad } from "./util.js";
@@ -249,7 +249,6 @@ function useRoutes(routes, filename) {
   state.routes = routes;
   $("#trackSel").innerHTML = routes.map((r, k) => `<option value="${k}">${esc(r.name)} (${r.pts.length} pts)</option>`).join("");
   $("#trackField").hidden = routes.length < 2;
-  $("#importHelp").hidden = true;
   useRoute(routes[0], filename);
 }
 function rememberRoute(text, filename) {
@@ -316,14 +315,8 @@ document.addEventListener("drop", e => {
   if (e.target.closest("#drop")) return;
   e.preventDefault();
   const f = e.dataTransfer.files[0];
-  if (f) { openFile(f); return; }
-  // a link dragged in from a Garmin Connect tab
-  const url = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
-  if (url) { $("#link").value = url.trim(); handleLink(url); }
+  if (f) openFile(f);
 });
-$("#link").addEventListener("input", e => handleLink(e.target.value));
-$("#link").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); handleLink(e.target.value); } });
-$("#importHelp").addEventListener("click", e => { if (e.target.closest("[data-close]")) $("#importHelp").hidden = true; });
 $("#sharedBanner").addEventListener("click", e => { if (e.target.closest("[data-close]")) $("#sharedBanner").hidden = true; });
 
 $("#metric").addEventListener("click", e => {
@@ -367,18 +360,43 @@ function planSummary() {
   return `${state.name}, ${fmtDay(state.startMs)} ${fmtTime(state.startMs)}, ${$("#speed").value} km/h` +
     (st.length ? `, stops at ${st.map(x => `km ${r1(x.km)} (${x.min} min)`).join(", ")}` : "");
 }
+// "Share link" opens a small panel: the short link appears as soon as is.gd answers (the share sheet needs its own
+// tap, so it can't wait on the network); if is.gd is unavailable the full link is offered with a note.
+let linkFor = null, linkUrl = null;
 $("#share").addEventListener("click", async () => {
   if (!state.track) return;
-  const url = state.shareUrl || await shareURL();
-  history.replaceState(null, "", url);
-  // phones: the native share sheet (WhatsApp, Messages…); desktop: copy to the clipboard
-  if (navigator.share && matchMedia("(pointer: coarse)").matches) {
-    try { await navigator.share({ title: `Ride plan: ${state.name}`, text: `Ride plan: ${planSummary()}`, url }); setStatus("Ride plan shared."); return; }
-    catch (e) { if (e.name === "AbortError") return; }
-  }
-  try { await navigator.clipboard.writeText(url); setStatus(`Link copied. It opens the full plan: ${planSummary()}.`); }
-  catch (e) { setStatus("The share link is now in the address bar; copy it from there."); }
+  const v = $("#linkView"), act = n => v.querySelector(`[data-act="${n}"]`);
+  $("#linkSummary").textContent = planSummary();
+  $("#linkOut").value = "Making a short link…"; $("#shareHint").textContent = "";
+  act("share").disabled = act("copy").disabled = true;
+  act("share").hidden = !navigator.share;
+  v.hidden = false;
+  const long = state.shareUrl || await shareURL();
+  history.replaceState(null, "", long);
+  linkFor = long;
+  let url = long, note;
+  try { url = await shorten(long); note = "Short link by is.gd: it works in any chat. Anyone who has it can open this plan."; }
+  catch (e) { note = "Couldn't make a short link right now. This full link works, but some apps cut long links: if your friend's doesn't open, try again in a minute."; }
+  if (linkFor !== long || v.hidden) return; // closed, or a newer plan
+  linkUrl = url;
+  $("#linkOut").value = url; $("#shareHint").textContent = note;
+  act("share").disabled = act("copy").disabled = false;
+  (navigator.share ? act("share") : act("copy")).focus();
 });
+$("#linkView").addEventListener("click", e => {
+  const v = $("#linkView");
+  if (e.target === e.currentTarget || e.target.closest("[data-close]")) { v.hidden = true; return; }
+  const b = e.target.closest("[data-act]"); if (!b || !linkUrl) return;
+  if (b.dataset.act === "share") {
+    navigator.share({ title: `Ride plan: ${state.name}`, text: `Ride plan: ${planSummary()}`, url: linkUrl })
+      .then(() => { v.hidden = true; setStatus("Ride plan shared."); }, err => { if (err.name !== "AbortError") $("#shareHint").textContent = "Couldn't open the share sheet; use Copy link instead."; });
+  } else if (b.dataset.act === "copy") {
+    navigator.clipboard.writeText(linkUrl).then(() => { $("#shareHint").textContent = "Copied. Paste it into a chat."; }, () => { $("#linkOut").select(); $("#shareHint").textContent = "Select the link above and copy it."; });
+  }
+});
+$("#linkOut").addEventListener("focus", e => e.target.select());
+addEventListener("keydown", e => { if (e.key === "Escape") $("#linkView").hidden = true; });
+
 // "Share image" opens a preview first, then offers what this browser can do: share sheet, copy, download.
 // (Each action is its own tap, so the share sheet's "must come from a gesture" rule always holds.)
 let card = null;
@@ -399,7 +417,13 @@ function drawPreview() {
   const canvas = drawCard(), slug = (state.name || "ride").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "ride";
   const dataUrl = canvas.toDataURL("image/png"), file = cardFile(dataUrl, `ride-plan-${slug}.png`);
   if (card) URL.revokeObjectURL(card.url);
-  card = { file, url: URL.createObjectURL(file), text: `Ride plan: ${planSummary()}` + (state.shareUrl ? `\n${state.shareUrl}` : "") };
+  const link = state.shareUrl && (cachedShort(state.shareUrl) || state.shareUrl);
+  card = { file, url: URL.createObjectURL(file), text: `Ride plan: ${planSummary()}` + (link ? `\n${link}` : "") };
+  // the text sent with the image carries the short link: make it now if needed (the image itself is already drawn)
+  if (state.shareUrl && link === state.shareUrl) {
+    const forUrl = state.shareUrl, c = card;
+    shorten(forUrl).then(sh => { if (card === c) c.text = `Ride plan: ${planSummary()}\n${sh}`; }).catch(() => {});
+  }
   const v = $("#imgView"), dl = v.querySelector('[data-act="download"]');
   v.querySelector("img").src = dataUrl;
   dl.href = card.url; dl.setAttribute("download", file.name);

@@ -79,12 +79,8 @@ button,input,select{font:inherit;color:inherit}
 .drop span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .import{border-color:var(--accent)}
-.import .steps{margin:0;padding-left:20px;display:grid;gap:10px}
-.import .steps li{padding-left:4px}
-.import .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 .btn.primary:hover{background:var(--accent);filter:brightness(1.08)}
-.field .hint.link-ok{color:var(--tail)} .field .hint.link-bad{color:var(--head)}
 a.btn{text-decoration:none;color:inherit}
 a.btn.primary{color:var(--accent-ink)}
 .check{display:flex;align-items:center;gap:8px;padding:9px 0;cursor:pointer;min-height:40px}
@@ -117,6 +113,10 @@ a.btn.primary{color:var(--accent-ink)}
 .imgview-box{display:grid;gap:10px;justify-items:center;max-width:min(520px,100%);margin:auto}
 .imgview img{max-width:100%;max-height:calc(100dvh - 190px);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.5);-webkit-touch-callout:default}
 .imgview p{margin:0;color:#fff;font-size:14px;text-align:center}
+.linkbox{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(520px,100%);justify-items:stretch}
+.linkbox p{color:var(--muted);text-align:left}
+.linkbox input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);font:500 15px var(--mono)}
+.linkbox .imgview-actions{justify-content:flex-start}
 .imgview-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .label-row{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
 .seg.mini button{padding:1px 7px;font-size:11px}
