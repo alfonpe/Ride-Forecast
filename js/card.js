@@ -90,8 +90,14 @@ export function drawCard() {
   const free = r => { const [x, yy, w, h] = r; return x >= box.x + 8 && x + w <= box.x + box.w - 8 && yy >= box.y + 8 && yy + h <= box.y + box.h - 8 &&
     !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h) && !hitsLine(r); };
   g.font = `600 23px ${BODY}`;
+  // hazards on the outline: numbered markers matching the list under the stats, most severe first, at most three
+  const shownHaz = [...state.hazards].sort((a, b) => (a.sev === "bad" ? 0 : 1) - (b.sev === "bad" ? 0 : 1) || a.k0 - b.k0).slice(0, 3);
+  // a hazard that starts at the start (or ends at the finish) sits just beside that marker, not under it
+  const ends = [P(0), P(tr.pts.length - 1)];
+  const hazAt = z => { const [x, yy] = XY(S[z.k0].lat, S[z.k0].lon); return ends.some(([a, b]) => Math.hypot(a - x, b - yy) < 30) ? [x + 27, yy - 27] : [x, yy]; };
   // every marker's spot is reserved before any text is placed, so no text covers another place's dot
   for (const l of labels) { const [px, py] = XY(l.lat, l.lon); taken.push([px - 9, py - 10, 18, 19]); }
+  for (const z of shownHaz) { const [px, py] = hazAt(z); taken.push([px - 16, py - 16, 32, 32]); }
   // most important first, so they get the best spots: the summit, then the turnaround, then towns
   const rank = l => l.type === "high" ? 0 : l.far ? 1 : 2;
   for (const l of [...labels].sort((a, b) => rank(a) - rank(b))) {
@@ -116,6 +122,12 @@ export function drawCard() {
     g.strokeText(l.text, spot[0], spot[1] + 20); g.fillText(l.text, spot[0], spot[1] + 20);
   }
 
+  const badge = (x, yy, n, col, r = 14) => {
+    g.fillStyle = col; g.beginPath(); g.arc(x, yy, r, 0, 7); g.fill();
+    g.strokeStyle = "#fff"; g.lineWidth = 3; g.stroke();
+    g.fillStyle = "#fff"; g.font = `700 ${r + 2}px ${FONT}`; g.textAlign = "center"; g.fillText(String(n), x, yy + (r + 2) * 0.36); g.textAlign = "left";
+  };
+  shownHaz.forEach((z, k) => { const [px, py] = hazAt(z); badge(px, py, k + 1, css(z.sev === "bad" ? "--head" : "--cross")); });
   const dot = (i, col, label) => {
     const [a, b] = P(i); g.fillStyle = col; g.beginPath(); g.arc(a, b, 17, 0, 7); g.fill();
     g.strokeStyle = "#fff"; g.lineWidth = 4; g.stroke(); g.fillStyle = "#fff"; g.font = `700 18px ${FONT}`; g.textAlign = "center"; g.fillText(label, a, b + 6); g.textAlign = "left";
@@ -132,7 +144,7 @@ export function drawCard() {
   // elevation profile
   y = box.y + box.h + 26;
   if (tr.hasEle) {
-    const eh = 76, emin = Math.min(...tr.ele), emax = Math.max(...tr.ele), ex = i => PAD + tr.cum[i] / tr.total * (W - 2 * PAD), ey = i => y + eh - (tr.ele[i] - emin) / ((emax - emin) || 1) * eh;
+    const eh = 58, emin = Math.min(...tr.ele), emax = Math.max(...tr.ele), ex = i => PAD + tr.cum[i] / tr.total * (W - 2 * PAD), ey = i => y + eh - (tr.ele[i] - emin) / ((emax - emin) || 1) * eh;
     g.fillStyle = css("--elev"); g.beginPath(); g.moveTo(PAD, y + eh);
     for (let i = 0; i < tr.pts.length; i += Math.max(1, Math.floor(tr.pts.length / 600))) g.lineTo(ex(i), ey(i));
     g.lineTo(W - PAD, y + eh); g.closePath(); g.fill();
@@ -151,23 +163,24 @@ export function drawCard() {
     ["Gusts", `${r0(maxOf(S, "gust"))} km/h`, "strongest"],
     water ? ["Water", water.len > 0 ? `${r0(water.len)} km` : "—", "longest stretch without"] : ["Finish", fmtTime(state.endMs), fmtDay(state.endMs)]
   ];
-  const tw = (W - 2 * PAD - 2 * 20) / 3, th = 124;
+  const tw = (W - 2 * PAD - 2 * 20) / 3, th = 112;
   tiles.forEach(([l, v, d], k) => {
-    const tx = PAD + (k % 3) * (tw + 20), ty = y + Math.floor(k / 3) * (th + 20);
+    const tx = PAD + (k % 3) * (tw + 20), ty = y + Math.floor(k / 3) * (th + 16);
     g.fillStyle = css("--surface-2"); g.beginPath(); g.roundRect(tx, ty, tw, th, 20); g.fill();
-    g.fillStyle = muted; g.font = `600 20px ${BODY}`; g.fillText(l.toUpperCase(), tx + 22, ty + 38);
-    g.fillStyle = ink; g.font = `600 40px ${FONT}`; g.fillText(v, tx + 22, ty + 86);
-    g.fillStyle = muted; g.font = `500 21px ${BODY}`; g.fillText(d, tx + 22, ty + 116);
+    g.fillStyle = muted; g.font = `600 20px ${BODY}`; g.fillText(l.toUpperCase(), tx + 22, ty + 34);
+    g.fillStyle = ink; g.font = `600 40px ${FONT}`; g.fillText(v, tx + 22, ty + 79);
+    g.fillStyle = muted; g.font = `500 21px ${BODY}`; g.fillText(d, tx + 22, ty + 104);
   });
-  y += 2 * th + 20 + 46;
+  y += 2 * th + 16 + 42;
 
   // what matters most: hazards first, then rain and kit advice
   const lines = [
-    ...state.hazards.slice(0, 2).map(z => ({ col: css(z.sev === "bad" ? "--head" : "--cross"), text: `${HAZ[z.type]} ${plain(hazWhere(z))}` })),
+    ...shownHaz.map((z, k) => ({ col: css(z.sev === "bad" ? "--head" : "--cross"), n: k + 1, text: `${HAZ[z.type]} ${plain(hazWhere(z))}` })),
     ...(state.notes || []).filter(([, t]) => /^(Light|Moderate|Heavy|Violent|Drizzle|Showers|Kit)/.test(t)).map(([cls, t]) => ({ col: css(cls === "bad" ? "--head" : cls === "warn" ? "--cross" : "--accent"), text: plain(t) }))
   ].slice(0, 3);
   g.font = `500 27px ${BODY}`;
   for (const l of lines) {
+    g.font = `500 27px ${BODY}`; // (a number badge changes the font)
     // up to two lines each; whatever doesn't fit above the footer is shortened, not dropped
     const room = Math.min(2, Math.floor((H - 130 - y) / 36) + 1);
     if (room < 1) break;
@@ -178,9 +191,10 @@ export function drawCard() {
       while (last && g.measureText(last + "…").width > W - 2 * PAD - 34) last = last.replace(/\s*\S+$/, "");
       rows[room - 1] = last + "…";
     }
-    g.fillStyle = l.col; g.beginPath(); g.arc(PAD + 8, y - 9, 8, 0, 7); g.fill();
-    g.fillStyle = ink; rows.forEach((r, i) => g.fillText(r, PAD + 34, y + i * 36));
-    y += rows.length * 36 + 18;
+    if (l.n) badge(PAD + 11, y - 9, l.n, l.col, 13); // same number as on the outline
+    else { g.fillStyle = l.col; g.beginPath(); g.arc(PAD + 8, y - 9, 8, 0, 7); g.fill(); }
+    g.fillStyle = ink; g.font = `500 27px ${BODY}`; rows.forEach((r, i) => g.fillText(r, PAD + 38, y + i * 36));
+    y += rows.length * 36 + 10;
   }
 
   // footer
