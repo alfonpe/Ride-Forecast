@@ -1,6 +1,7 @@
-import { compass } from "./geo.js";
+import { compass, locate } from "./geo.js";
 import { HAZ } from "./hazards.js";
 import { pickLabels } from "./labels.js";
+import { outAndBack } from "./orient.js";
 import { waterGap } from "./pois.js";
 import { catColor, hazWhere } from "./render.js";
 import { state } from "./state.js";
@@ -45,101 +46,138 @@ export function drawCard() {
   g.fillStyle = muted; g.font = `500 30px ${BODY}`;
   g.fillText(`${fmtDay(state.startMs)} · ${fmtTime(state.startMs)} → ${fmtTime(state.endMs)} · ${r1(tr.total / 1000)} km${tr.hasEle ? ` · ${r0(tr.gain)} m up` : ""}`, PAD, y);
 
-  // route outline: colour = head/cross/tailwind, thickness = how strong the wind is there
+  // route map: colour = head/cross/tailwind, thickness = how strong the wind is there. An out-and-back ride gets two
+  // maps side by side (out | back) at the same scale and position: drawn as one, the way back would cover the way out.
   const box = { x: PAD, y: y + 30, w: W - 2 * PAD, h: 480 };
   const labels = pickLabels(tr, state.places ? state.places.places : [], state.places ? state.places.summits : []);
-  const lat0 = rad(tr.pts[0].lat), kx = Math.cos(lat0);
-  const xs = tr.pts.map(p => p.lon * kx), ys = tr.pts.map(p => p.lat);
-  // the frame also takes in the labelled towns, which can sit a few km off the route
-  const allX = [...xs, ...labels.map(l => l.lon * kx)], allY = [...ys, ...labels.map(l => l.lat)];
-  const x0 = Math.min(...allX), x1 = Math.max(...allX), y0 = Math.min(...allY), y1 = Math.max(...allY);
-  const inner = { l: 36, r: 112, t: 36, b: 64 }; // room for the wind badge (top right) and the key (bottom)
-  const sc = Math.min((box.w - inner.l - inner.r) / ((x1 - x0) || 1e-6), (box.h - inner.t - inner.b) / ((y1 - y0) || 1e-6));
-  const ox = box.x + inner.l + (box.w - inner.l - inner.r - (x1 - x0) * sc) / 2, oy = box.y + inner.t + (box.h - inner.t - inner.b + (y1 - y0) * sc) / 2;
-  const XY = (lat, lon) => [ox + (lon * kx - x0) * sc, oy - (lat - y0) * sc];
-  const P = i => XY(tr.pts[i].lat, tr.pts[i].lon);
+  const ob = outAndBack(tr), kTurn = ob ? Math.max(1, Math.min(S.length - 2, Math.round(tr.cum[ob.turn] / tr.total * (S.length - 1)))) : null;
   const bg2 = css("--surface-2");
   g.fillStyle = bg2; g.beginPath(); g.roundRect(box.x, box.y, box.w, box.h, 24); g.fill();
   g.lineCap = "round"; g.lineJoin = "round";
   const width = s => 3 + Math.min(Math.max(s.ws, 0), 40) / 40 * 19; // 3 px when calm … 22 px at 40+ km/h
-  const seg = (k, fn) => { g.beginPath(); for (let i = S[k].i; i <= Math.min(S[k + 1].i + 1, tr.pts.length - 1); i++) { const [a, b] = P(i); i === S[k].i ? g.moveTo(a, b) : g.lineTo(a, b); } fn(); };
-  for (let k = 0; k < S.length - 1; k++) seg(k, () => { g.strokeStyle = "rgba(0,0,0,.16)"; g.lineWidth = width(S[k]) + 6; g.stroke(); });
-  for (let k = 0; k < S.length - 1; k++) seg(k, () => { g.strokeStyle = catColor(S[k].cat); g.lineWidth = width(S[k]); g.stroke(); });
-
-  // wind badge: the overall direction (averaged as vectors) and the speed range along the ride
+  // the overall wind: direction averaged as vectors, and the speed range along the ride
   const u = S.reduce((a, s) => a + s.ws * Math.sin(rad(s.wdir)), 0), v = S.reduce((a, s) => a + s.ws * Math.cos(rad(s.wdir)), 0);
-  const from = (Math.atan2(u, v) * 180 / Math.PI + 360) % 360, cx = box.x + box.w - 72, cy = box.y + 70;
-  g.fillStyle = surface; g.beginPath(); g.arc(cx, cy, 38, 0, 7); g.fill();
-  g.save(); g.translate(cx, cy); g.rotate(rad(from + 180)); g.fillStyle = ink;
-  g.beginPath(); g.moveTo(0, -24); g.lineTo(12, -2); g.lineTo(4, -2); g.lineTo(4, 22); g.lineTo(-4, 22); g.lineTo(-4, -2); g.lineTo(-12, -2); g.closePath(); g.fill(); g.restore();
-  g.textAlign = "center"; g.fillStyle = ink; g.font = `600 22px ${BODY}`;
-  g.fillText(`from ${compass(from)}`, cx, cy + 66);
-  g.fillStyle = muted; g.font = `500 20px ${BODY}`; g.fillText(`${r0(minOf(S, "ws"))}–${r0(maxOf(S, "ws"))} km/h`, cx, cy + 92);
-  g.textAlign = "left";
-
-  // reference labels: towns, the furthest point, the high point. A label goes where it touches neither the route
-  // (at its drawn thickness), other labels, the wind badge nor the key; tried at growing distances, else skipped.
-  const taken = [[cx - 70, cy - 42, 140, 145], [box.x, box.y + box.h - 52, box.w, 52]];
-  for (const i of [0, tr.pts.length - 1]) { const [a, b] = P(i); taken.push([a - 21, b - 21, 42, 42]); } // the S and F markers
-  const routePx = [];
-  for (let k = 0; k < S.length - 1; k++) {
-    const hw = width(S[k]) / 2 + 5;
-    for (let i = S[k].i; i <= Math.min(S[k + 1].i, tr.pts.length - 1); i++) { const [a, b] = P(i); routePx.push([a, b, hw]); }
-  }
-  const hitsLine = ([x, yy, w, h]) => routePx.some(([a, b, hw]) => a > x - hw && a < x + w + hw && b > yy - hw && b < yy + h + hw);
-  const free = r => { const [x, yy, w, h] = r; return x >= box.x + 8 && x + w <= box.x + box.w - 8 && yy >= box.y + 8 && yy + h <= box.y + box.h - 8 &&
-    !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h) && !hitsLine(r); };
-  g.font = `600 23px ${BODY}`;
-  // hazards on the outline: numbered markers matching the list under the stats, most severe first, at most three
+  const from = (Math.atan2(u, v) * 180 / Math.PI + 360) % 360, windRange = `${r0(minOf(S, "ws"))}–${r0(maxOf(S, "ws"))} km/h`;
+  const arrow = (cx, cy, size) => {
+    g.save(); g.translate(cx, cy); g.rotate(rad(from + 180)); g.scale(size, size); g.fillStyle = ink;
+    g.beginPath(); g.moveTo(0, -24); g.lineTo(12, -2); g.lineTo(4, -2); g.lineTo(4, 22); g.lineTo(-4, 22); g.lineTo(-4, -2); g.lineTo(-12, -2); g.closePath(); g.fill(); g.restore();
+  };
+  // hazards: numbered markers matching the list under the stats, most severe first, at most three
   const shownHaz = [...state.hazards].sort((a, b) => (a.sev === "bad" ? 0 : 1) - (b.sev === "bad" ? 0 : 1) || a.k0 - b.k0).slice(0, 3);
-  // a hazard that starts at the start (or ends at the finish) sits just beside that marker, not under it
-  const ends = [P(0), P(tr.pts.length - 1)];
-  const hazAt = z => { const [x, yy] = XY(S[z.k0].lat, S[z.k0].lon); return ends.some(([a, b]) => Math.hypot(a - x, b - yy) < 30) ? [x + 27, yy - 27] : [x, yy]; };
-  // every marker's spot is reserved before any text is placed, so no text covers another place's dot
-  for (const l of labels) { const [px, py] = XY(l.lat, l.lon); taken.push([px - 9, py - 10, 18, 19]); }
-  for (const z of shownHaz) { const [px, py] = hazAt(z); taken.push([px - 16, py - 16, 32, 32]); }
-  // most important first, so they get the best spots: the summit, then the turnaround, then towns
-  const rank = l => l.type === "high" ? 0 : l.far ? 1 : 2;
-  for (const l of [...labels].sort((a, b) => rank(a) - rank(b))) {
-    const [px, py] = XY(l.lat, l.lon), tw = g.measureText(l.text).width, th = 26;
-    let spot = null;
-    for (const d of [12, 30, 52, 80, 115]) {
-      spot = [[px + d, py - th / 2], [px - d - tw, py - th / 2], [px - tw / 2, py - d - th], [px - tw / 2, py + d],
-        [px + d * .7, py - d * .7 - th], [px - d * .7 - tw, py - d * .7 - th], [px + d * .7, py + d * .7], [px - d * .7 - tw, py + d * .7]]
-        .map(([x, yy]) => [x, yy, tw, th]).find(free);
-      if (spot) break;
-    }
-    if (!spot) continue;
-    taken.push(spot);
-    g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 3;
-    g.beginPath();
-    if (l.type === "high") { g.moveTo(px, py - 9); g.lineTo(px + 9, py + 7); g.lineTo(px - 9, py + 7); g.closePath(); } else g.arc(px, py, 6, 0, 7);
-    g.fill(); g.stroke();
-    // a hairline from the dot when the label had to move away from it
-    const [sx, sy] = [Math.max(spot[0], Math.min(px, spot[0] + tw)), Math.max(spot[1], Math.min(py, spot[1] + th))];
-    if (Math.hypot(sx - px, sy - py) > 22) { g.strokeStyle = muted; g.lineWidth = 1.5; g.beginPath(); g.moveTo(px, py); g.lineTo(sx, sy); g.stroke(); }
-    g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 6; g.lineJoin = "round";
-    g.strokeText(l.text, spot[0], spot[1] + 20); g.fillText(l.text, spot[0], spot[1] + 20);
-  }
-
   const badge = (x, yy, n, col, r = 14) => {
     g.fillStyle = col; g.beginPath(); g.arc(x, yy, r, 0, 7); g.fill();
     g.strokeStyle = "#fff"; g.lineWidth = 3; g.stroke();
     g.fillStyle = "#fff"; g.font = `700 ${r + 2}px ${FONT}`; g.textAlign = "center"; g.fillText(String(n), x, yy + (r + 2) * 0.36); g.textAlign = "left";
   };
-  shownHaz.forEach((z, k) => { const [px, py] = hazAt(z); badge(px, py, k + 1, css(z.sev === "bad" ? "--head" : "--cross")); });
-  const dot = (i, col, label) => {
-    const [a, b] = P(i); g.fillStyle = col; g.beginPath(); g.arc(a, b, 17, 0, 7); g.fill();
-    g.strokeStyle = "#fff"; g.lineWidth = 4; g.stroke(); g.fillStyle = "#fff"; g.font = `700 18px ${FONT}`; g.textAlign = "center"; g.fillText(label, a, b + 6); g.textAlign = "left";
+  // one geographic frame for every panel (route + labelled towns, which can sit a few km off it)
+  const kx = Math.cos(rad(tr.pts[0].lat));
+  const allX = [...tr.pts.map(p => p.lon * kx), ...labels.map(l => l.lon * kx)], allY = [...tr.pts.map(p => p.lat), ...labels.map(l => l.lat)];
+  const x0 = Math.min(...allX), x1 = Math.max(...allX), y0 = Math.min(...allY), y1 = Math.max(...allY);
+  const last = S.length - 1, nPts = tr.pts.length;
+
+  // one map panel showing checkpoints k0 … k1 of the ride (the whole ride, or one leg of an out-and-back)
+  const panel = (pb, { k0 = 0, k1 = last, title = "", inner, windBadge = false }) => {
+    const sc = Math.min((pb.w - inner.l - inner.r) / ((x1 - x0) || 1e-6), (pb.h - inner.t - inner.b) / ((y1 - y0) || 1e-6));
+    const ox = pb.x + inner.l + (pb.w - inner.l - inner.r - (x1 - x0) * sc) / 2, oy = pb.y + inner.t + (pb.h - inner.t - inner.b + (y1 - y0) * sc) / 2;
+    const XY = (lat, lon) => [ox + (lon * kx - x0) * sc, oy - (lat - y0) * sc];
+    const P = i => XY(tr.pts[i].lat, tr.pts[i].lon);
+    const split = k0 > 0 || k1 < last;
+    g.save(); g.beginPath(); g.rect(pb.x, pb.y, pb.w, pb.h); g.clip();
+    if (split) { // the other leg, faint, for context
+      g.strokeStyle = muted; g.globalAlpha = .35; g.lineWidth = 3; g.beginPath();
+      tr.pts.forEach((_, i) => { const [a, b] = P(i); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke(); g.globalAlpha = 1;
+    }
+    const seg = (k, fn) => { g.beginPath(); for (let i = S[k].i; i <= Math.min(S[k + 1].i + 1, nPts - 1); i++) { const [a, b] = P(i); i === S[k].i ? g.moveTo(a, b) : g.lineTo(a, b); } fn(); };
+    for (let k = k0; k < k1; k++) seg(k, () => { g.strokeStyle = "rgba(0,0,0,.16)"; g.lineWidth = width(S[k]) + 6; g.stroke(); });
+    for (let k = k0; k < k1; k++) seg(k, () => { g.strokeStyle = catColor(S[k].cat); g.lineWidth = width(S[k]); g.stroke(); });
+
+    let wb = null;
+    if (windBadge) { // round wind badge in the top-right corner
+      const cx = pb.x + pb.w - 72, cy = pb.y + 70;
+      g.fillStyle = surface; g.beginPath(); g.arc(cx, cy, 38, 0, 7); g.fill();
+      arrow(cx, cy, 1);
+      g.textAlign = "center"; g.fillStyle = ink; g.font = `600 22px ${BODY}`; g.fillText(`from ${compass(from)}`, cx, cy + 66);
+      g.fillStyle = muted; g.font = `500 20px ${BODY}`; g.fillText(windRange, cx, cy + 92); g.textAlign = "left";
+      wb = [cx - 70, cy - 42, 140, 145];
+    }
+    if (title) { g.fillStyle = ink; g.font = `600 21px ${BODY}`; g.fillText(title, pb.x + 22, pb.y + 38); }
+
+    // reference labels: a label goes where it touches neither this panel's route (at its drawn thickness), other
+    // labels, markers, the title, the wind badge nor the key; tried at growing distances, else skipped
+    const taken = [[pb.x, pb.y + pb.h - 52, pb.w, 52], ...(wb ? [wb] : []), ...(title ? [[pb.x, pb.y, pb.w, 52]] : [])];
+    const hasS = k0 === 0, hasF = k1 === last;
+    if (hasS) { const [a, b] = P(0); taken.push([a - 21, b - 21, 42, 42]); }
+    if (hasF) { const [a, b] = P(nPts - 1); taken.push([a - 21, b - 21, 42, 42]); }
+    const routePx = [];
+    for (let k = k0; k < k1; k++) {
+      const hw = width(S[k]) / 2 + 5;
+      for (let i = S[k].i; i <= Math.min(S[k + 1].i, nPts - 1); i++) { const [a, b] = P(i); routePx.push([a, b, hw]); }
+    }
+    const hitsLine = ([x, yy, w, h]) => routePx.some(([a, b, hw]) => a > x - hw && a < x + w + hw && b > yy - hw && b < yy + h + hw);
+    const free = r => { const [x, yy, w, h] = r; return x >= pb.x + 8 && x + w <= pb.x + pb.w - 8 && yy >= pb.y + 8 && yy + h <= pb.y + pb.h - 8 &&
+      !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h) && !hitsLine(r); };
+    // a hazard that starts at the start (or ends at the finish) sits just beside that marker, not under it
+    const ends = [...(hasS ? [P(0)] : []), ...(hasF ? [P(nPts - 1)] : [])];
+    const hazAt = z => { const [x, yy] = XY(S[z.k0].lat, S[z.k0].lon); return ends.some(([a, b]) => Math.hypot(a - x, b - yy) < 30) ? [x + 27, yy - 27] : [x, yy]; };
+    const here = shownHaz.map((z, n) => ({ z, n: n + 1 })).filter(({ z }) => z.k0 >= k0 && z.k0 < Math.max(k1, k0 + 1) + (hasF ? 1 : 0));
+    // every marker's spot is reserved before any text is placed, so no text covers another place's dot
+    for (const l of labels) { const [px, py] = XY(l.lat, l.lon); taken.push([px - 9, py - 10, 18, 19]); }
+    for (const { z } of here) { const [px, py] = hazAt(z); taken.push([px - 16, py - 16, 32, 32]); }
+    g.font = `600 23px ${BODY}`;
+    // most important first, so they get the best spots: the summit, then the turnaround, then towns
+    const rank = l => l.type === "high" ? 0 : l.far ? 1 : 2;
+    for (const l of [...labels].sort((a, b) => rank(a) - rank(b))) {
+      const [px, py] = XY(l.lat, l.lon), tw = g.measureText(l.text).width, th = 26;
+      let spot = null;
+      for (const d of [12, 30, 52, 80, 115]) {
+        spot = [[px + d, py - th / 2], [px - d - tw, py - th / 2], [px - tw / 2, py - d - th], [px - tw / 2, py + d],
+          [px + d * .7, py - d * .7 - th], [px - d * .7 - tw, py - d * .7 - th], [px + d * .7, py + d * .7], [px - d * .7 - tw, py + d * .7]]
+          .map(([x, yy]) => [x, yy, tw, th]).find(free);
+        if (spot) break;
+      }
+      if (!spot) continue;
+      taken.push(spot);
+      g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 3;
+      g.beginPath();
+      if (l.type === "high") { g.moveTo(px, py - 9); g.lineTo(px + 9, py + 7); g.lineTo(px - 9, py + 7); g.closePath(); } else g.arc(px, py, 6, 0, 7);
+      g.fill(); g.stroke();
+      // a hairline from the dot when the label had to move away from it
+      const [sx, sy] = [Math.max(spot[0], Math.min(px, spot[0] + tw)), Math.max(spot[1], Math.min(py, spot[1] + th))];
+      if (Math.hypot(sx - px, sy - py) > 22) { g.strokeStyle = muted; g.lineWidth = 1.5; g.beginPath(); g.moveTo(px, py); g.lineTo(sx, sy); g.stroke(); }
+      g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 6; g.lineJoin = "round";
+      g.font = `600 23px ${BODY}`; g.strokeText(l.text, spot[0], spot[1] + 20); g.fillText(l.text, spot[0], spot[1] + 20);
+    }
+    here.forEach(({ z, n }) => { const [px, py] = hazAt(z); badge(px, py, n, css(z.sev === "bad" ? "--head" : "--cross")); });
+    const dot = (i, col, label) => {
+      const [a, b] = P(i); g.fillStyle = col; g.beginPath(); g.arc(a, b, 17, 0, 7); g.fill();
+      g.strokeStyle = "#fff"; g.lineWidth = 4; g.stroke(); g.fillStyle = "#fff"; g.font = `700 18px ${FONT}`; g.textAlign = "center"; g.fillText(label, a, b + 6); g.textAlign = "left";
+    };
+    if (split) { const [a, b] = P(S[kTurn].i); g.strokeStyle = ink; g.lineWidth = 3; g.fillStyle = bg2; g.beginPath(); g.arc(a, b, 9, 0, 7); g.fill(); g.stroke(); } // the turnaround
+    if (hasF) dot(nPts - 1, css("--head"), "F");
+    if (hasS) dot(0, css("--tail"), "S");
+    g.restore();
   };
-  dot(tr.pts.length - 1, css("--head"), "F"); dot(0, css("--tail"), "S");
-  // key: colours, and thickness for strength
-  g.font = `500 22px ${BODY}`; let kx2 = box.x + 22;
+
+  if (!ob) panel(box, { inner: { l: 36, r: 112, t: 36, b: 64 }, windBadge: true });
+  else {
+    const half = box.w / 2, tKm = tr.cum[S[kTurn].i] / 1000, tAt = state.startMs + locate(tr, tKm * 1000).t * 1000, inner = { l: 22, r: 22, t: 62, b: 62 };
+    panel({ x: box.x, y: box.y, w: half, h: box.h }, { k0: 0, k1: kTurn, inner, title: `→ Out · km 0–${r0(tKm)} · ${fmtTime(state.startMs)}–${fmtTime(tAt)}` });
+    panel({ x: box.x + half, y: box.y, w: half, h: box.h }, { k0: kTurn, k1: last, inner, title: `← Back · km ${r0(tKm)}–${r0(tr.total / 1000)} · ${fmtTime(tAt)}–${fmtTime(state.endMs)}` });
+    g.strokeStyle = css("--line"); g.lineWidth = 2; g.beginPath(); g.moveTo(box.x + half, box.y + 18); g.lineTo(box.x + half, box.y + box.h - 58); g.stroke();
+  }
+  // key: colours, and thickness for strength (plus the wind, compactly, when there are two maps)
+  const ks = ob ? 20 : 22;
+  g.font = `500 ${ks}px ${BODY}`; let kx2 = box.x + 22;
   for (const [cat, lbl] of [["head", "headwind"], ["cross", "crosswind"], ["tail", "tailwind"]]) {
-    g.fillStyle = catColor(cat); g.fillRect(kx2, box.y + box.h - 34, 22, 8); g.fillStyle = muted; g.fillText(lbl, kx2 + 30, box.y + box.h - 24); kx2 += g.measureText(lbl).width + 56;
+    g.fillStyle = catColor(cat); g.fillRect(kx2, box.y + box.h - 34, 22, 8); g.fillStyle = muted; g.fillText(lbl, kx2 + 30, box.y + box.h - 24); kx2 += g.measureText(lbl).width + (ob ? 46 : 56);
   }
   g.fillStyle = muted; g.fillRect(kx2, box.y + box.h - 33, 26, 4); g.fillRect(kx2 + 34, box.y + box.h - 37, 26, 14);
   g.fillText("calm → strong", kx2 + 70, box.y + box.h - 24);
+  if (ob) {
+    g.textAlign = "right"; g.fillStyle = ink; g.font = `600 ${ks}px ${BODY}`;
+    g.fillText(`from ${compass(from)} · ${windRange}`, box.x + box.w - 22, box.y + box.h - 24); g.textAlign = "left";
+    arrow(box.x + box.w - 30 - g.measureText(`from ${compass(from)} · ${windRange}`).width - 18, box.y + box.h - 31, .55);
+  }
 
   // elevation profile
   y = box.y + box.h + 26;

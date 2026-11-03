@@ -55,3 +55,20 @@ test("compareReversed: a north wind favours riding south", () => {
   assert.ok(c.alt.dur < c.cur.dur && c.alt.head < 0 && c.cur.head > 0);
   assert.ok(c.alt.score < c.cur.score);
 });
+
+test("out-and-back routes are told apart from loops", async () => {
+  const { outAndBack } = await import("../js/orient.js");
+  const step = 10 / 111195;
+  // 20 km north and back on (nearly) the same road
+  const out = Array.from({ length: 2001 }, (_, i) => ({ lat: 39.47 + i * step, lon: -0.38 }));
+  const back = out.slice(0, -1).reverse().map(p => ({ lat: p.lat, lon: p.lon + 0.00012 })); // ~10 m to the side
+  const ob = outAndBack(buildTrack([...out, ...back]));
+  assert.ok(ob && ob.shared > 0.9, `shared ${ob && ob.shared}`);
+  assert.ok(Math.abs(buildTrack([...out, ...back]).cum[ob.turn] / 1000 - 20) < 0.2, "turns at the far end");
+  assert.equal(outAndBack(circle), null, "a loop isn't");
+  // a lollipop: 10 km out, a 10 km loop, 10 km back → about two thirds ridden twice, still counted at a lower bar
+  const stem = out.slice(0, 1001), loopPts = Array.from({ length: 1000 }, (_, i) => { const a = i / 1000 * 2 * Math.PI; return { lat: stem.at(-1).lat + 0.0143 * Math.sin(a), lon: -0.38 + 0.0187 * (1 - Math.cos(a)) }; });
+  const lolli = buildTrack([...stem, ...loopPts, ...stem.slice().reverse().map(p => ({ lat: p.lat, lon: p.lon + 0.0001 }))]);
+  assert.equal(outAndBack(lolli), null, "below 70 %");
+  assert.ok(outAndBack(lolli, { share: 0.6 }), "but out-and-back at 60 %");
+});
