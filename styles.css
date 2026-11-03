@@ -107,6 +107,11 @@ a.btn.primary{color:var(--accent-ink)}
 #map{height:500px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface-2);flex-wrap:wrap}
 .seg button{border:0;background:transparent;padding:6px 10px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.imgview{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:16px}
+.imgview-box{display:grid;gap:10px;justify-items:center;max-width:min(520px,100%)}
+.imgview img{max-width:100%;max-height:78vh;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.5);-webkit-touch-callout:default}
+.imgview p{margin:0;color:#fff;font-size:14px;text-align:center}
+.imgview-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .label-row{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
 .seg.mini button{padding:1px 7px;font-size:11px}
 .seg button[aria-pressed=true]{background:var(--surface);color:var(--accent);font-weight:600;box-shadow:inset 0 0 0 1px var(--line)}

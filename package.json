@@ -5,6 +5,7 @@
   "description": "Weather along a cycling route, at the moment you ride through it. Static site, no build step.",
   "scripts": {
     "test": "node --test",
+    "stamp": "node scripts/stamp.mjs",
     "start": "python3 -m http.server 8000"
   }
 }

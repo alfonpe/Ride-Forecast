@@ -318,6 +318,8 @@ $("#picks").addEventListener("click", e => { const b = e.target.closest("button[
 $("#stops").addEventListener("change", () => { if (state.track) run(false); });
 $("#wf").addEventListener("change", () => { if (state.track) run(false); });
 $("#hills").addEventListener("change", () => { if (state.track) run(false); });
+let editTimer = 0;
+for (const id of ["#start", "#speed"]) $(id).addEventListener("change", () => { clearTimeout(editTimer); editTimer = setTimeout(() => { if (state.track) run(false); }, 600); });
 function planSummary() {
   const st = state.opts ? state.opts.stops : [];
   return `${state.name}, ${fmtDay(state.startMs)} ${fmtTime(state.startMs)}, ${$("#speed").value} km/h` +
@@ -335,22 +337,41 @@ $("#share").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(url); setStatus(`Link copied. It opens the full plan: ${planSummary()}.`); }
   catch (e) { setStatus("The share link is now in the address bar; copy it from there."); }
 });
-// a picture of the plan for chats: the phone's share sheet, or a download on a computer
+// "Share image" opens a preview first, then offers what this browser can do: share sheet, copy, download.
+// (Each action is its own tap, so the share sheet's "must come from a gesture" rule always holds.)
+let card = null;
+function hideImage() { $("#imgView").hidden = true; if (card) URL.revokeObjectURL(card.url); card = null; }
 $("#shareImg").addEventListener("click", () => {
   if (!state.samples) return;
   const canvas = drawCard(), slug = (state.name || "ride").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "ride";
-  const file = cardFile(canvas, `ride-plan-${slug}.png`);
-  const text = `Ride plan: ${planSummary()}` + (state.shareUrl ? `\n${state.shareUrl}` : "");
-  if (navigator.canShare && matchMedia("(pointer: coarse)").matches && navigator.canShare({ files: [file] })) {
-    navigator.share({ files: [file], title: `Ride plan: ${state.name}`, text })
-      .then(() => setStatus("Ride plan image shared."), e => { if (e.name !== "AbortError") setStatus("Couldn't share the image: " + e.message, true); });
-    return;
-  }
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(file); a.download = file.name; document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-  setStatus(`Saved ${file.name}. It summarises the plan; the share link opens the full forecast.`);
+  const dataUrl = canvas.toDataURL("image/png"), file = cardFile(dataUrl, `ride-plan-${slug}.png`);
+  if (card) URL.revokeObjectURL(card.url);
+  card = { file, url: URL.createObjectURL(file), text: `Ride plan: ${planSummary()}` + (state.shareUrl ? `\n${state.shareUrl}` : "") };
+  let canFiles = false;
+  try { canFiles = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { /* unsupported */ }
+  const canCopy = !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem), phone = matchMedia("(pointer: coarse)").matches;
+  const v = $("#imgView"), act = n => v.querySelector(`[data-act="${n}"]`);
+  v.querySelector("img").src = dataUrl;
+  act("share").hidden = !canFiles;
+  act("copy").hidden = !canCopy || phone;
+  act("download").hidden = phone && canFiles;
+  act("download").href = card.url; act("download").setAttribute("download", file.name);
+  $("#imgHint").textContent = canFiles ? "Share it to a chat, or save it." : phone ? "Press and hold the image to save or share it." : "Copy it and paste into a chat (e.g. WhatsApp Web), or download it.";
+  v.hidden = false;
+  (canFiles ? act("share") : v.querySelector("[data-close]")).focus();
 });
+$("#imgView").addEventListener("click", e => {
+  if (e.target === e.currentTarget || e.target.closest("[data-close]")) { hideImage(); return; }
+  const b = e.target.closest("[data-act]"); if (!b || !card) return;
+  if (b.dataset.act === "share") {
+    navigator.share({ files: [card.file], title: `Ride plan: ${state.name}`, text: card.text })
+      .then(() => { hideImage(); setStatus("Ride plan image shared."); }, e2 => { if (e2.name !== "AbortError") $("#imgHint").textContent = "Couldn't open the share sheet; press and hold the image, or download it."; });
+  } else if (b.dataset.act === "copy") {
+    navigator.clipboard.write([new ClipboardItem({ "image/png": card.file })])
+      .then(() => { $("#imgHint").textContent = "Copied. Paste it into a chat."; }, () => { $("#imgHint").textContent = "This browser wouldn't copy the image; use Download instead."; });
+  } else if (b.dataset.act === "download") setTimeout(() => { $("#imgHint").textContent = `Saved ${card ? card.file.name : "the image"} to your downloads.`; }, 300);
+});
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("#imgView").hidden) hideImage(); });
 $("#theme").addEventListener("click", () => {
   const cur = document.documentElement.dataset.theme || "auto", next = THEMES[(THEMES.indexOf(cur) + 1) % 3];
   try { localStorage.setItem("rf-theme", next); } catch (e) {}

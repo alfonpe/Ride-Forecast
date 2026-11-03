@@ -133,8 +133,8 @@ export function drawCard() {
 }
 
 // a PNG File built synchronously, so navigator.share still counts as part of the tap
-export function cardFile(canvas, name) {
-  const bin = atob(canvas.toDataURL("image/png").split(",")[1]), bytes = new Uint8Array(bin.length);
+export function cardFile(dataUrl, name) {
+  const bin = atob(dataUrl.split(",")[1]), bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new File([bytes], name, { type: "image/png" });
 }
