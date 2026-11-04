@@ -1,6 +1,6 @@
 import { renderBest, renderCharts } from "./charts.js";
 import { compass, locate } from "./geo.js";
-import { HAZ } from "./hazards.js";
+import { HAZ, HAZ_ICON } from "./hazards.js";
 import { nearestSample, setHover } from "./hover.js";
 import { arrowSvg, icon, wmo } from "./icons.js";
 import { drawMap, map } from "./map.js";
@@ -62,7 +62,7 @@ export function airTile() {
 export function renderHazards() {
   const Z = state.hazards;
   $("#hazards").innerHTML = Z.length
-    ? Z.map(z => `<li class="${z.sev}"><button type="button" class="hz" data-km="${state.samples[z.k0].km}"><b>${HAZ[z.type]}</b> ${hazWhere(z)}<span class="sub"> · ${z.detail}</span></button></li>`).join("")
+    ? Z.map(z => `<li class="${z.sev} ic"><span class="ni">${icon(HAZ_ICON[z.type], 15)}</span><button type="button" class="hz" data-km="${state.samples[z.k0].km}"><b>${HAZ[z.type]}</b> ${hazWhere(z)}<span class="sub"> · ${z.detail}</span></button></li>`).join("")
     : `<li class="good">No weather hazards flagged along the route.</li>`;
 }
 
@@ -96,25 +96,25 @@ export function renderNotes() {
   const w = Math.max(1, Math.round(S.length * 0.15));
   let bi = 0, bv = -Infinity;
   for (let i = 0; i + w <= S.length; i++) { const v = S.slice(i, i + w).reduce((a, s) => a + s.head, 0) / w; if (v > bv) { bv = v; bi = i; } }
-  if (bv > 4) notes.push(["bad", `Toughest headwind from km ${r0(S[bi].km)} to ${r0(S[bi + w - 1].km)} (around ${fmtTime(S[bi].eta)}), about ${r0(bv)} km/h in your face.`]);
-  notes.push([pct("tail") > pct("head") ? "good" : "info", `Wind mix: ${pct("head")}% headwind, ${pct("cross")}% crosswind, ${pct("tail")}% tailwind.`]);
-  if (Math.abs(sim.windMin) >= 3) notes.push([sim.windMin > 0 ? "warn" : "good", `The wind ${sim.windMin > 0 ? "costs you" : "saves you"} about ${r0(Math.abs(sim.windMin))} min compared with a still day.`]);
+  if (bv > 4) notes.push(["bad", `Toughest headwind from km ${r0(S[bi].km)} to ${r0(S[bi + w - 1].km)} (around ${fmtTime(S[bi].eta)}), about ${r0(bv)} km/h in your face.`, "headwind"]);
+  notes.push([pct("tail") > pct("head") ? "good" : "info", `Wind mix: ${pct("head")}% headwind, ${pct("cross")}% crosswind, ${pct("tail")}% tailwind.`, "wind"]);
+  if (Math.abs(sim.windMin) >= 3) notes.push([sim.windMin > 0 ? "warn" : "good", `The wind ${sim.windMin > 0 ? "costs you" : "saves you"} about ${r0(Math.abs(sim.windMin))} min compared with a still day.`, "clock"]);
   const lastHalf = S.filter(s => s.km > tr.total / 2000), lh = lastHalf.reduce((a, s) => a + s.head, 0) / (lastHalf.length || 1);
-  if (lh < -3) notes.push(["good", `Tailwind on the way home: about ${r0(-lh)} km/h behind you in the second half.`]);
-  else if (lh > 4) notes.push(["warn", `Second half is into the wind (≈${r0(lh)} km/h). Save something for it.`]);
+  if (lh < -3) notes.push(["good", `Tailwind on the way home: about ${r0(-lh)} km/h behind you in the second half.`, "tailwind"]);
+  else if (lh > 4) notes.push(["warn", `Second half is into the wind (≈${r0(lh)} km/h). Save something for it.`, "headwind"]);
   const gusty = S.filter(s => s.gust >= 45);
-  if (gusty.length) notes.push(["bad", `Gusts up to ${r0(Math.max(...gusty.map(s => s.gust)))} km/h from km ${r0(gusty[0].km)}. Careful on exposed descents and with deep-section wheels.`]);
+  if (gusty.length) notes.push(["bad", `Gusts up to ${r0(Math.max(...gusty.map(s => s.gust)))} km/h from km ${r0(gusty[0].km)}. Careful on exposed descents and with deep-section wheels.`, "gust"]);
   // rain: how much, not just how likely
   const wetS = S.filter(s => s.precip >= 0.1), likely = S.find(s => s.pop >= 50);
   if (wetS.length) {
     const top = wetS.reduce((a, b) => b.precip > a.precip ? b : a), [, key, label] = rainLevel(top.precip);
     const total = S.reduce((a, s) => a + s.precip * s.dt / 3600, 0);
     const advice = { drizzle: "A light jacket or gilet will do.", light: "Pack a rain jacket.", moderate: "Full rain jacket and overshoes; expect wet, slippery roads.", heavy: "Consider moving the ride: heavy rain cuts grip and visibility.", violent: "Don't ride in this if you can avoid it." }[key];
-    notes.push([key === "drizzle" ? "warn" : "bad", `${label} from around km ${r0(wetS[0].km)} (${fmtTime(wetS[0].eta)}), heaviest near km ${r0(top.km)} at ${r1(top.precip)} mm/h; about ${r1(total)} mm over the ride. ${advice}`]);
-  } else if (likely) notes.push(["warn", `Showers possible from around km ${r0(likely.km)} (${r0(likely.pop)}% chance), though the forecast shows little actual rain. A packable jacket is worth it.`]);
-  else if (maxOf(S, "pop") >= 25) notes.push(["warn", `Some chance of showers (up to ${r0(maxOf(S, "pop"))}%). A packable jacket is worth it.`]);
-  else notes.push(["good", "Dry ride expected."]);
-  if (maxT >= 30) notes.push(["warn", `Hot: up to ${r0(maxT)} °C. Carry extra bottles and plan a refill.`]);
+    notes.push([key === "drizzle" ? "warn" : "bad", `${label} from around km ${r0(wetS[0].km)} (${fmtTime(wetS[0].eta)}), heaviest near km ${r0(top.km)} at ${r1(top.precip)} mm/h; about ${r1(total)} mm over the ride. ${advice}`, "rain"]);
+  } else if (likely) notes.push(["warn", `Showers possible from around km ${r0(likely.km)} (${r0(likely.pop)}% chance), though the forecast shows little actual rain. A packable jacket is worth it.`, "rain"]);
+  else if (maxOf(S, "pop") >= 25) notes.push(["warn", `Some chance of showers (up to ${r0(maxOf(S, "pop"))}%). A packable jacket is worth it.`, "rain"]);
+  else notes.push(["good", "Dry ride expected.", "sun"]);
+  if (maxT >= 30) notes.push(["warn", `Hot: up to ${r0(maxT)} °C. Carry extra bottles and plan a refill.`, "heat"]);
   // kit suggestion from the coldest on-bike temperature (wind chill at riding speed)
   let kit;
   if (minBike >= 21) kit = "Short sleeves and shorts.";
@@ -123,28 +123,28 @@ export function renderNotes() {
   else if (minBike >= 6) kit = "Long sleeves or jacket, knee/leg warmers, light gloves.";
   else if (minBike >= 1) kit = "Winter jacket, tights, full gloves, overshoes.";
   else kit = "Full winter kit and watch for ice.";
-  notes.push(["info", `Kit (feels as low as ${r0(minBike)} °C on the bike): ${kit}`]);
-  if (state.opts.stops.length) notes.push(["info", `Stops: ${state.opts.stops.map(st => `km ${r1(st.km)} (${st.min} min)`).join(", ")}, ${r0(sim.stopSec / 60)} min in total.`]);
-  if (state.sun && state.sun.set && end > state.sun.set) notes.push(["bad", `You finish at ${fmtTime(end)}, after sunset (${fmtTime(state.sun.set)}). Bring lights.`]);
-  else if (state.sun && state.sun.rise && state.startMs < state.sun.rise) notes.push(["warn", `You start before sunrise (${fmtTime(state.sun.rise)}). Bring lights.`]);
-  else if (state.sun && state.sun.set) notes.push(["info", `Sunset ${fmtTime(state.sun.set)}; you finish ${fmtDur((state.sun.set - end) / 1000)} before.`]);
+  notes.push(["info", `Kit (feels as low as ${r0(minBike)} °C on the bike): ${kit}`, "therm"]);
+  if (state.opts.stops.length) notes.push(["info", `Stops: ${state.opts.stops.map(st => `km ${r1(st.km)} (${st.min} min)`).join(", ")}, ${r0(sim.stopSec / 60)} min in total.`, "cup"]);
+  if (state.sun && state.sun.set && end > state.sun.set) notes.push(["bad", `You finish at ${fmtTime(end)}, after sunset (${fmtTime(state.sun.set)}). Bring lights.`, "sun"]);
+  else if (state.sun && state.sun.rise && state.startMs < state.sun.rise) notes.push(["warn", `You start before sunrise (${fmtTime(state.sun.rise)}). Bring lights.`, "sun"]);
+  else if (state.sun && state.sun.set) notes.push(["info", `Sunset ${fmtTime(state.sun.set)}; you finish ${fmtDur((state.sun.set - end) / 1000)} before.`, "sun"]);
   const ahead = (state.startMs - Date.now()) / DAY;
-  if (ahead > 5) notes.push(["warn", `This ride is ${r0(ahead)} days out. Treat it as a trend and check again closer to the day.`]);
+  if (ahead > 5) notes.push(["warn", `This ride is ${r0(ahead)} days out. Treat it as a trend and check again closer to the day.`, "clock"]);
   const uvMax = maxOf(S, "uv");
-  if (uvMax >= 3) notes.push([uvMax >= 6 ? "warn" : "info", `UV peaks at ${r1(uvMax)} (${uvLevel(uvMax).toLowerCase()}) around ${fmtTime(S.find(x => x.uv === uvMax).eta)}. ${uvMax >= 6 ? "Suncream, and cover arms and neck." : "Suncream on exposed skin."}`]);
+  if (uvMax >= 3) notes.push([uvMax >= 6 ? "warn" : "info", `UV peaks at ${r1(uvMax)} (${uvLevel(uvMax).toLowerCase()}) around ${fmtTime(S.find(x => x.uv === uvMax).eta)}. ${uvMax >= 6 ? "Suncream, and cover arms and neck." : "Suncream on exposed skin."}`, "uv"]);
   const Aq = state.air ? S.map((s, k) => [s, state.air[k]]).filter(x => x[1]) : [];
   if (Aq.length) {
     const [ws, wa] = Aq.reduce((x, y) => y[1].aqi > x[1].aqi ? y : x);
-    if (wa.aqi >= 60) notes.push([wa.aqi >= 80 ? "bad" : "warn", `Air quality ${aqiLevel(wa.aqi).toLowerCase()} (AQI ${r0(wa.aqi)}) around km ${r0(ws.km)}. Keep the effort easy if you're sensitive to it.`]);
+    if (wa.aqi >= 60) notes.push([wa.aqi >= 80 ? "bad" : "warn", `Air quality ${aqiLevel(wa.aqi).toLowerCase()} (AQI ${r0(wa.aqi)}) around km ${r0(ws.km)}. Keep the effort easy if you're sensitive to it.`, "lungs"]);
     const pol = {};
     Aq.forEach(([, a]) => a.pollen.forEach(p => { if (!pol[p.name] || p.v > pol[p.name].v) pol[p.name] = p; }));
     const hi = Object.values(pol).filter(p => p.v >= p.hi), mid = Object.values(pol).filter(p => p.v >= p.hi / 5 && p.v < p.hi);
-    if (hi.length) notes.push(["warn", `High ${hi.map(p => p.name).join(" and ")} pollen. If you get hay fever, take your antihistamine before you go.`]);
-    else if (mid.length) notes.push(["info", `Moderate ${mid.map(p => p.name).join(", ")} pollen.`]);
+    if (hi.length) notes.push(["warn", `High ${hi.map(p => p.name).join(" and ")} pollen. If you get hay fever, take your antihistamine before you go.`, "pollen"]);
+    else if (mid.length) notes.push(["info", `Moderate ${mid.map(p => p.name).join(", ")} pollen.`, "pollen"]);
   }
-  if (zone.name !== DEVICE_TZ) notes.push(["info", `Times are local to the route (${zone.name.replace(/_/g, " ")}), not this device.`]);
-  if (tr.eleSrc === "dem") notes.push(["info", "Your file had no elevation, so climbs come from a 90 m terrain model."]);
-  $("#notes").innerHTML = notes.map(([c, t]) => `<li class="${c}">${t}</li>`).join("");
+  if (zone.name !== DEVICE_TZ) notes.push(["info", `Times are local to the route (${zone.name.replace(/_/g, " ")}), not this device.`, "clock"]);
+  if (tr.eleSrc === "dem") notes.push(["info", "Your file had no elevation, so climbs come from a 90 m terrain model.", "climb"]);
+  $("#notes").innerHTML = notes.map(([c, t, i]) => `<li class="${c} ic"><span class="ni">${icon(i, 15)}</span><span>${t}</span></li>`).join("");
 }
 
 export function renderTable() {

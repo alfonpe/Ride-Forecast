@@ -141,6 +141,10 @@ a.btn.primary{color:var(--accent-ink)}
 .notes{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .notes li{display:grid;grid-template-columns:10px 1fr;gap:10px;align-items:baseline;font-size:13.5px}
 .notes li::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted);transform:translateY(-1px)}
+.notes li.ic{grid-template-columns:18px 1fr;align-items:start}
+.notes li.ic::before{display:none}
+.notes .ni{display:flex;align-items:center;height:1.45em;color:var(--accent)}
+.notes li.warn .ni{color:var(--cross)} .notes li.bad .ni{color:var(--head)} .notes li.good .ni{color:var(--tail)}
 .hz{all:unset;cursor:pointer;display:block}
 .hz:hover b{text-decoration:underline}
 .hz:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}

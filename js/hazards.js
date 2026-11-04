@@ -3,6 +3,7 @@ import { r0, r1, rad } from "./util.js";
 
 /* ---------- hazards: storms, freezing rain/snow, ice, fog, crosswind gusts, heat ---------- */
 export const HAZ = { rain: "Heavy rain", storm: "Thunderstorm risk", frz: "Freezing rain", snow: "Snow", ice: "Ice risk", fog: "Fog", xwind: "Strong crosswind gusts", heat: "Heat stress" };
+export const HAZ_ICON = { rain: "rain", storm: "storm", frz: "freeze", snow: "snow", ice: "freeze", fog: "fog", xwind: "crosswind", heat: "heat" };
 export const STORM = [95, 96, 99], FRZ = [56, 57, 66, 67], SNOW = [71, 73, 75, 77, 85, 86];
 export function detectHazards(S, tr) {
   const eles = S.map(s => s.ele).sort((a, b) => a - b), high = eles[Math.floor(eles.length * 0.85)];
