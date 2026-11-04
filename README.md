@@ -54,4 +54,4 @@ Data: [Open-Meteo](https://open-meteo.com/) (forecast, ECMWF ensemble, CAMS air 
 
 ## Usage stats
 
-Visits and feature use (file imported, shared link opened, share link, share image, Home by) are counted with [GoatCounter](https://www.goatcounter.com/): no cookies and no personal data. The `#…` part of a shared link, which holds the plan, is never sent. Dashboard: https://alfonpe.goatcounter.com/
+Visits and feature use (file imported, shared link opened, share link, share image, Home by) are counted with [GoatCounter](https://www.goatcounter.com/): no cookies and no personal data. The `#…` part of a shared link, which holds the plan, is never sent.
