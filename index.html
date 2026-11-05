@@ -8,8 +8,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="styles.css?v=7a05d979e8">
-<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=7a05d979e8","./js/card.js":"./js/card.js?v=7a05d979e8","./js/charts.js":"./js/charts.js?v=7a05d979e8","./js/demo.js":"./js/demo.js?v=7a05d979e8","./js/files.js":"./js/files.js?v=7a05d979e8","./js/geo.js":"./js/geo.js?v=7a05d979e8","./js/hazards.js":"./js/hazards.js?v=7a05d979e8","./js/hover.js":"./js/hover.js?v=7a05d979e8","./js/icons.js":"./js/icons.js?v=7a05d979e8","./js/labels.js":"./js/labels.js?v=7a05d979e8","./js/main.js":"./js/main.js?v=7a05d979e8","./js/map.js":"./js/map.js?v=7a05d979e8","./js/net.js":"./js/net.js?v=7a05d979e8","./js/orient.js":"./js/orient.js?v=7a05d979e8","./js/pacing.js":"./js/pacing.js?v=7a05d979e8","./js/places.js":"./js/places.js?v=7a05d979e8","./js/pois.js":"./js/pois.js?v=7a05d979e8","./js/render.js":"./js/render.js?v=7a05d979e8","./js/share.js":"./js/share.js?v=7a05d979e8","./js/shortlink.js":"./js/shortlink.js?v=7a05d979e8","./js/state.js":"./js/state.js?v=7a05d979e8","./js/stats.js":"./js/stats.js?v=7a05d979e8","./js/time.js":"./js/time.js?v=7a05d979e8","./js/util.js":"./js/util.js?v=7a05d979e8","./js/weather.js":"./js/weather.js?v=7a05d979e8"}}</script><!-- version:end -->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
+<link rel="stylesheet" href="styles.css?v=ec4fe273a6">
+<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=ec4fe273a6","./js/card.js":"./js/card.js?v=ec4fe273a6","./js/charts.js":"./js/charts.js?v=ec4fe273a6","./js/demo.js":"./js/demo.js?v=ec4fe273a6","./js/files.js":"./js/files.js?v=ec4fe273a6","./js/geo.js":"./js/geo.js?v=ec4fe273a6","./js/hazards.js":"./js/hazards.js?v=ec4fe273a6","./js/hover.js":"./js/hover.js?v=ec4fe273a6","./js/icons.js":"./js/icons.js?v=ec4fe273a6","./js/labels.js":"./js/labels.js?v=ec4fe273a6","./js/main.js":"./js/main.js?v=ec4fe273a6","./js/map.js":"./js/map.js?v=ec4fe273a6","./js/net.js":"./js/net.js?v=ec4fe273a6","./js/orient.js":"./js/orient.js?v=ec4fe273a6","./js/pacing.js":"./js/pacing.js?v=ec4fe273a6","./js/places.js":"./js/places.js?v=ec4fe273a6","./js/pois.js":"./js/pois.js?v=ec4fe273a6","./js/render.js":"./js/render.js?v=ec4fe273a6","./js/share.js":"./js/share.js?v=ec4fe273a6","./js/shortlink.js":"./js/shortlink.js?v=ec4fe273a6","./js/state.js":"./js/state.js?v=ec4fe273a6","./js/stats.js":"./js/stats.js?v=ec4fe273a6","./js/time.js":"./js/time.js?v=ec4fe273a6","./js/util.js":"./js/util.js?v=ec4fe273a6","./js/weather.js":"./js/weather.js?v=ec4fe273a6"}}</script><!-- version:end -->
 </head>
 <body>
 <div class="wrap">
@@ -52,7 +53,7 @@
       <input type="text" id="stops" placeholder="e.g. 45@20, 90@10" autocomplete="off" spellcheck="false">
       <span class="hint" id="stopsHint">café or refill stops along the way</span>
     </div>
-    <div class="field">
+    <div class="field wf-field">
       <label class="label" for="wf">Wind where you ride</label>
       <select id="wf">
         <option value="1">Forecast at 10 m (no reduction)</option>
@@ -172,10 +173,22 @@
         <div class="chart-head"><h3>Wind direction</h3><span class="sub">where the wind comes from vs. your heading</span></div>
         <div class="chart-box tall"><canvas id="cDir"></canvas></div>
       </div>
-      <div class="chart wide">
+      <div class="chart">
         <div class="chart-head"><h3>Predicted speed</h3><span class="sub">km/h moving · with this wind vs. in still air</span></div>
         <div class="chart-box"><canvas id="cSpeed"></canvas></div>
         <div class="tbreak" id="timeBreak" aria-label="Where the time goes"></div>
+      </div>
+      <div class="chart expo" aria-label="Wind exposure">
+        <div class="chart-head"><h3>Wind around you</h3><span class="sub">time with the wind from each side · top is straight into your face</span></div>
+        <div class="seg" id="expoPart" role="group" aria-label="Part of the ride">
+          <button type="button" data-part="all" aria-pressed="true">Whole ride</button>
+          <button type="button" data-part="first" aria-pressed="false">First half</button>
+          <button type="button" data-part="second" aria-pressed="false">Second half</button>
+        </div>
+        <div class="rose"><svg id="rose" viewBox="-180 -150 360 300" role="img" aria-label="Time with the wind from each side"></svg></div>
+        <div class="tbar" id="expoBar" aria-hidden="true"></div>
+        <dl class="expo-stats" id="expoStats"></dl>
+        <p class="sub" id="expoNote"></p>
       </div>
       <div class="chart">
         <div class="chart-head"><h3>UV index</h3><span class="sub">sunburn risk when you pass · 3+ suncream, 6+ high, 8+ very high</span></div>
@@ -188,41 +201,25 @@
     </div>
   </section>
 
-  <section class="block" aria-label="Wind exposure">
-    <div class="block-head">
-      <div><h2 class="section-title">Wind around you</h2><div class="sub">Time riding with the wind from each side. Top is straight into your face.</div></div>
-      <div class="seg" id="expoPart" role="group" aria-label="Part of the ride">
-        <button type="button" data-part="all" aria-pressed="true">Whole ride</button>
-        <button type="button" data-part="first" aria-pressed="false">First half</button>
-        <button type="button" data-part="second" aria-pressed="false">Second half</button>
-      </div>
-    </div>
-    <div class="expo">
-      <div class="rose"><svg id="rose" viewBox="-180 -150 360 300" role="img" aria-label="Time with the wind from each side"></svg></div>
-      <div class="expo-side">
-        <div class="tbar" id="expoBar" aria-hidden="true"></div>
-        <dl class="expo-stats" id="expoStats"></dl>
-        <p class="sub" id="expoNote"></p>
-      </div>
-    </div>
-  </section>
-
-  <section class="block">
-    <div class="block-head"><h2 class="section-title">Checkpoints</h2><div class="sub" id="spacingLabel"></div></div>
+  <details class="block checkpoints">
+    <summary class="block-head"><div><h2 class="section-title">Checkpoints</h2><div class="sub" id="spacingLabel"></div></div><span class="btn show-btn"><span class="when-closed">Show table</span><span class="when-open">Hide table</span><svg class="chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 4.5l4 4 4-4"/></svg></span></summary>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Km</th><th>Pass at</th><th>Sky</th><th>Temp</th><th>On bike</th><th>Wind (10 m)</th><th>Gusts</th><th>From</th><th>For you</th><th>Rain</th><th>Cloud</th><th>Humidity</th><th>UV</th><th>AQI</th><th>Elev.</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
-  </section>
+  </details>
 
   <footer>Forecast: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0), best-match model; air quality and pollen from CAMS via Open-Meteo; interpolated to your arrival time at each checkpoint; uncertainty from the ECMWF IFS ensemble; missing elevation from Copernicus DEM via Open-Meteo. Map © OpenStreetMap contributors. Forecasts reach 16 days ahead (ensemble 15); accuracy drops after 3–5 days. Wind effect on speed and on-bike wind chill are rule-of-thumb estimates.</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- vector basemap (OpenFreeMap, as in Route Library) drawn inside Leaflet; the map falls back to raster tiles if these fail -->
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js" integrity="sha384-4CB9Vtol9LN6lGgBCvmPLbUEZwilrqIvPieSRurgAXAB7FVJaLS9n8WyAIA5wjQ+" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script data-goatcounter="https://alfonpe.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
-<script type="module" src="js/main.js?v=7a05d979e8"></script>
+<script type="module" src="js/main.js?v=ec4fe273a6"></script>
 </body>
 </html>

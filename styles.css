@@ -37,7 +37,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--body);-
 .wrap{max-width:1440px;margin:0 auto;padding-left:max(40px,env(safe-area-inset-left,0px));padding-right:max(40px,env(safe-area-inset-right,0px));padding-block:32px 48px;display:flex;flex-direction:column;gap:24px}
 h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 a{color:var(--ink)}
-.label{font-size:12px;color:var(--muted)}
+.label{font-size:12px;line-height:1.45;color:var(--muted)}
 .sub{font-size:13px;color:var(--muted)}
 .muted{font-size:13px;color:var(--muted)}
 .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
@@ -74,11 +74,12 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .field input:not([type=checkbox]):not([type=file]),.field select{width:100%;padding:8px 10px;border:1px solid var(--chip);border-radius:6px;background:var(--bg);min-height:40px;color:var(--ink)}
 .field input[type=number],.field input[type=text],.field input[type=datetime-local]{font-family:var(--mono);font-size:13px}
 .field input:focus,.field select:focus{outline:2px solid var(--ink);outline-offset:1px}
-.file-field{flex:1 1 240px;max-width:340px}
+.file-field{flex:1 1 160px;max-width:300px}
 .speed-field .with-unit{display:flex;align-items:center;gap:6px;color:var(--muted)}
 .speed-field input{width:6.5em!important}
-.start-field{flex:0 1 230px}
-.stops-field{flex:0 1 170px}
+.start-field{flex:0 1 220px}
+.stops-field{flex:0 1 175px}
+.wf-field{flex:0 1 200px}
 .go-field{margin-left:auto}
 /* iOS Safari gives date inputs an intrinsic min-width that overflows narrow columns and centres the value */
 @supports (-webkit-touch-callout:none){
@@ -92,7 +93,7 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .drop svg{flex:none;color:var(--muted)}
 .drop span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;height:calc(12px * 1.45)}
 .check{display:flex;align-items:center;gap:8px;cursor:pointer;min-height:40px;margin-top:21px;font-size:13px;color:var(--muted);white-space:nowrap}
 .check input{accent-color:var(--ink);width:16px;height:16px}
 .check-field .hint{display:none}
@@ -107,8 +108,10 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .seg{display:inline-flex;flex-wrap:wrap;gap:3px;border:1px solid var(--chip);border-radius:6px;padding:3px}
 .seg button{border:0;background:transparent;padding:5px 10px;min-height:30px;border-radius:4px;font-size:13px;cursor:pointer;color:var(--ink)}
 .seg button[aria-pressed=true]{background:var(--ink);color:var(--bg);font-weight:600}
-.seg.mini{padding:2px;gap:2px}
-.seg.mini button{padding:1px 7px;min-height:22px;font-size:11px}
+.seg.mini{padding:0;gap:10px;border:0;border-radius:0}
+/* inside a field label: small underline tabs, as tall as the label itself */
+.seg.mini button{padding:0;min-height:0;font-size:12px;line-height:1.45;border-radius:0;color:var(--muted);border-bottom:1px solid transparent}
+.seg.mini button[aria-pressed=true]{background:none;color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
 
 /* banner (shared plan) */
 .banner{padding:14px 16px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px}
@@ -157,14 +160,27 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .key{display:inline-flex;align-items:center;gap:6px}
 .key b{width:14px;height:3px;border-radius:2px;display:inline-block}
 .key b.sq{width:10px;height:10px;border-radius:2px}
-.warrow{position:relative;width:34px;height:34px;display:grid;place-items:center}
-.warrow svg{filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
-.warrow span{position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);font:500 10px/1 var(--mono);background:var(--bg);color:var(--ink);padding:2px 3px;border-radius:3px;border:1px solid var(--line);white-space:nowrap}
-.leaflet-container{font-family:var(--body)}
+.warrow{position:relative;width:28px;height:28px;display:grid;place-items:center}
+.warrow svg{opacity:.9}
+.warrow span{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);font:500 9.5px/1 var(--mono);color:var(--ink);padding:1px 2px;white-space:nowrap;text-shadow:0 0 2px var(--bg),0 0 2px var(--bg),0 0 3px var(--bg)}
+.leaflet-container{font-family:var(--body);background:var(--surface-2)}
+.leaflet-bar,.leaflet-control-layers{border:1px solid var(--chip)!important;border-radius:6px!important;box-shadow:none!important;background:var(--bg);color:var(--ink)}
+.leaflet-bar a,.leaflet-bar a:hover{background:var(--bg);color:var(--ink);border-bottom-color:var(--chip);width:32px;height:32px;line-height:30px;font-weight:400}
+.leaflet-bar a:hover{background:var(--hover)}
+.leaflet-bar a:first-child{border-top-left-radius:6px;border-top-right-radius:6px}
+.leaflet-bar a:last-child{border-bottom-left-radius:6px;border-bottom-right-radius:6px}
+.leaflet-control-layers-toggle{width:34px;height:34px;background-size:18px}
+.leaflet-control-layers-expanded{padding:8px 12px;font-size:13px}
+.leaflet-control-layers label{margin:3px 0}
+.leaflet-control-layers input{accent-color:var(--ink)}
+.leaflet-control-attribution{font-size:10px;background:color-mix(in srgb,var(--bg) 75%,transparent)!important;color:var(--faint)}
+.leaflet-control-attribution a{color:var(--muted)}
+.leaflet-tooltip{font-family:var(--body);font-size:12px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.1)}
+.leaflet-tooltip-top::before{border-top-color:var(--line)}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
 .muted-tiles{filter:var(--tile-filter)}
-.pin{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font:600 10px/1 var(--mono);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
-.poi{width:20px;height:20px;border-radius:50%;background:var(--bg);display:grid;place-items:center;border:1.5px solid currentColor;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.pin{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:var(--bg);font:600 10px/1 var(--mono);border:2px solid var(--bg)}
+.poi{width:18px;height:18px;border-radius:50%;background:var(--bg);display:grid;place-items:center;border:1.5px solid currentColor}
 .poi.water{color:var(--cool)} .poi.cafe{color:var(--cafe)} .poi.shop{color:var(--muted)}
 .elev-box{position:relative;height:100px}
 
@@ -219,7 +235,6 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 /* ---------- charts ---------- */
 .charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:32px 40px}
 .chart{display:flex;flex-direction:column;gap:10px;min-width:0}
-.chart.wide{grid-column:1/-1}
 .chart-head{font-size:13px;color:var(--muted)}
 .chart-head h3{display:inline;font-size:13px;font-weight:600;color:var(--ink)}
 .chart-head h3::after{content:" · ";font-weight:400;color:var(--muted)}
@@ -242,24 +257,31 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .tstats .d{font-size:12px;color:var(--muted)}
 p.hint{margin:0;font-size:13px;color:var(--muted)}
 
-/* ---------- wind around you ---------- */
-.expo{display:flex;flex-wrap:wrap;gap:24px 48px;align-items:center}
-.rose{flex:0 1 400px;min-width:0;max-width:100%}
+/* ---------- wind around you (in the chart grid, beside predicted speed) ---------- */
+.expo .seg{align-self:flex-start}
+.rose{width:100%;max-width:380px;align-self:center}
 .rose svg{display:block;width:100%;height:auto}
 .rose .ring{fill:none;stroke:var(--row)}
 .rose .spoke{stroke:var(--row)}
 .rose .lab{font-family:var(--body);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;fill:var(--muted)}
 .rose .wedge{stroke:var(--bg);stroke-width:1.5}
 .rose .wedge:hover{opacity:.75}
-.expo-side{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:16px}
 .expo-stats{margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 16px}
 .expo-stats dt{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
 .expo-stats dt b{width:8px;height:8px;border-radius:2px;flex:none}
-.expo-stats dd{margin:2px 0 0;font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.expo-stats dd{margin:2px 0 0;font-family:var(--mono);font-size:20px;font-weight:500;font-variant-numeric:tabular-nums}
 .expo-stats dd small{font-size:13px;color:var(--muted);font-weight:400}
 #expoNote{margin:0;max-width:62ch}
 
-/* ---------- checkpoints: Route Library's table ---------- */
+/* ---------- checkpoints: Route Library's table, folded away until asked for ---------- */
+.checkpoints > summary{list-style:none;cursor:pointer;align-items:center}
+.checkpoints > summary::-webkit-details-marker{display:none}
+.checkpoints > summary:hover .show-btn{border-color:var(--ink)}
+.show-btn{min-height:34px;padding:6px 12px;font-size:13px}
+.show-btn .chev{transition:transform .15s}
+.checkpoints[open] .chev{transform:rotate(180deg)}
+.checkpoints .when-open,.checkpoints[open] .when-closed{display:none}
+.checkpoints[open] .when-open{display:inline}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:1000px}
 th{padding:8px 10px;font-size:12px;font-weight:500;color:var(--muted);text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
