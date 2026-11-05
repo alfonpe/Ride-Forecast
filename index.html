@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
-<link rel="stylesheet" href="styles.css?v=ec4fe273a6">
-<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=ec4fe273a6","./js/card.js":"./js/card.js?v=ec4fe273a6","./js/charts.js":"./js/charts.js?v=ec4fe273a6","./js/demo.js":"./js/demo.js?v=ec4fe273a6","./js/files.js":"./js/files.js?v=ec4fe273a6","./js/geo.js":"./js/geo.js?v=ec4fe273a6","./js/hazards.js":"./js/hazards.js?v=ec4fe273a6","./js/hover.js":"./js/hover.js?v=ec4fe273a6","./js/icons.js":"./js/icons.js?v=ec4fe273a6","./js/labels.js":"./js/labels.js?v=ec4fe273a6","./js/main.js":"./js/main.js?v=ec4fe273a6","./js/map.js":"./js/map.js?v=ec4fe273a6","./js/net.js":"./js/net.js?v=ec4fe273a6","./js/orient.js":"./js/orient.js?v=ec4fe273a6","./js/pacing.js":"./js/pacing.js?v=ec4fe273a6","./js/places.js":"./js/places.js?v=ec4fe273a6","./js/pois.js":"./js/pois.js?v=ec4fe273a6","./js/render.js":"./js/render.js?v=ec4fe273a6","./js/share.js":"./js/share.js?v=ec4fe273a6","./js/shortlink.js":"./js/shortlink.js?v=ec4fe273a6","./js/state.js":"./js/state.js?v=ec4fe273a6","./js/stats.js":"./js/stats.js?v=ec4fe273a6","./js/time.js":"./js/time.js?v=ec4fe273a6","./js/util.js":"./js/util.js?v=ec4fe273a6","./js/weather.js":"./js/weather.js?v=ec4fe273a6"}}</script><!-- version:end -->
+<link rel="stylesheet" href="styles.css?v=449e8fef1b">
+<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=449e8fef1b","./js/card.js":"./js/card.js?v=449e8fef1b","./js/charts.js":"./js/charts.js?v=449e8fef1b","./js/demo.js":"./js/demo.js?v=449e8fef1b","./js/files.js":"./js/files.js?v=449e8fef1b","./js/geo.js":"./js/geo.js?v=449e8fef1b","./js/hazards.js":"./js/hazards.js?v=449e8fef1b","./js/hover.js":"./js/hover.js?v=449e8fef1b","./js/icons.js":"./js/icons.js?v=449e8fef1b","./js/labels.js":"./js/labels.js?v=449e8fef1b","./js/main.js":"./js/main.js?v=449e8fef1b","./js/map.js":"./js/map.js?v=449e8fef1b","./js/net.js":"./js/net.js?v=449e8fef1b","./js/orient.js":"./js/orient.js?v=449e8fef1b","./js/pacing.js":"./js/pacing.js?v=449e8fef1b","./js/places.js":"./js/places.js?v=449e8fef1b","./js/pois.js":"./js/pois.js?v=449e8fef1b","./js/render.js":"./js/render.js?v=449e8fef1b","./js/share.js":"./js/share.js?v=449e8fef1b","./js/shortlink.js":"./js/shortlink.js?v=449e8fef1b","./js/state.js":"./js/state.js?v=449e8fef1b","./js/stats.js":"./js/stats.js?v=449e8fef1b","./js/time.js":"./js/time.js?v=449e8fef1b","./js/util.js":"./js/util.js?v=449e8fef1b","./js/weather.js":"./js/weather.js?v=449e8fef1b"}}</script><!-- version:end -->
 </head>
 <body>
 <div class="wrap">
@@ -106,6 +106,7 @@
   <dl class="summary" id="summary" aria-label="Ride summary"></dl>
 
   <section class="split">
+    <div class="split-main">
     <div class="block">
       <div class="block-head">
         <div><h2 class="section-title">Route</h2><div class="sub">Colour the route by</div></div>
@@ -128,6 +129,17 @@
         <span class="verdict"></span>
       </div>
     </div>
+      <section class="block" id="bestPanel">
+        <div class="block-head">
+          <div><h2 class="section-title">Best time to leave</h2><div class="sub" id="bestSub">Every half hour on the chosen day; shorter bars are better</div></div>
+          <div class="legend" id="bestLegend"></div>
+        </div>
+        <div class="best-chart"><canvas id="cBest" aria-label="Weather cost of every start on this day"></canvas></div>
+        <div class="day-pick" id="dayPick" aria-live="polite"></div>
+        <h3 class="section-title">Top picks</h3>
+        <ul class="picks" id="picks"></ul>
+      </section>
+    </div>
     <aside class="detail" aria-label="At this point of the ride">
       <span class="eyebrow">At this point of the ride</span>
       <div class="readout" id="readout"></div>
@@ -140,16 +152,6 @@
     </aside>
   </section>
 
-  <section class="block" id="bestPanel">
-    <div class="block-head">
-      <div><h2 class="section-title">Best time to leave</h2><div class="sub" id="bestSub">Every half hour on the chosen day; shorter bars are better</div></div>
-      <div class="legend" id="bestLegend"></div>
-    </div>
-    <div class="best-chart"><canvas id="cBest" aria-label="Weather cost of every start on this day"></canvas></div>
-    <div class="day-pick" id="dayPick" aria-live="polite"></div>
-    <h3 class="section-title">Top picks</h3>
-    <ul class="picks" id="picks"></ul>
-  </section>
 
   <section class="block">
     <h2 class="section-title">Along the ride</h2>
@@ -173,22 +175,27 @@
         <div class="chart-head"><h3>Wind direction</h3><span class="sub">where the wind comes from vs. your heading</span></div>
         <div class="chart-box tall"><canvas id="cDir"></canvas></div>
       </div>
-      <div class="chart">
-        <div class="chart-head"><h3>Predicted speed</h3><span class="sub">km/h moving · with this wind vs. in still air</span></div>
-        <div class="chart-box"><canvas id="cSpeed"></canvas></div>
-        <div class="tbreak" id="timeBreak" aria-label="Where the time goes"></div>
+      <div class="chart paired">
+        <div class="part"><div class="chart-head"><h3>Predicted speed</h3><span class="sub">km/h moving · with this wind vs. in still air</span></div></div>
+        <div class="part"><div class="chart-box fill"><canvas id="cSpeed"></canvas></div></div>
+        <div class="part"><div class="tbreak" id="timeBreak" aria-label="Where the time goes"></div></div>
       </div>
-      <div class="chart expo" aria-label="Wind exposure">
-        <div class="chart-head"><h3>Wind around you</h3><span class="sub">time with the wind from each side · top is straight into your face</span></div>
-        <div class="seg" id="expoPart" role="group" aria-label="Part of the ride">
-          <button type="button" data-part="all" aria-pressed="true">Whole ride</button>
-          <button type="button" data-part="first" aria-pressed="false">First half</button>
-          <button type="button" data-part="second" aria-pressed="false">Second half</button>
+      <div class="chart expo paired" aria-label="Wind exposure">
+        <div class="part">
+          <div class="chart-head"><h3>Wind around you</h3><span class="sub">time with the wind from each side · top is straight into your face</span></div>
+          <div class="seg" id="expoPart" role="group" aria-label="Part of the ride">
+            <button type="button" data-part="all" aria-pressed="true">Whole ride</button>
+            <button type="button" data-part="first" aria-pressed="false">First half</button>
+            <button type="button" data-part="second" aria-pressed="false">Second half</button>
+          </div>
         </div>
-        <div class="rose"><svg id="rose" viewBox="-180 -150 360 300" role="img" aria-label="Time with the wind from each side"></svg></div>
-        <div class="tbar" id="expoBar" aria-hidden="true"></div>
-        <dl class="expo-stats" id="expoStats"></dl>
-        <p class="sub" id="expoNote"></p>
+        <div class="part"><div class="rose"><svg id="rose" viewBox="-180 -150 360 300" role="img" aria-label="Time with the wind from each side"></svg></div></div>
+        <div class="part tbreak">
+          <span class="label" id="expoLabel">Wind mix</span>
+          <div class="tbar" id="expoBar" aria-hidden="true"></div>
+          <dl class="expo-stats" id="expoStats"></dl>
+          <p class="sub" id="expoNote"></p>
+        </div>
       </div>
       <div class="chart">
         <div class="chart-head"><h3>UV index</h3><span class="sub">sunburn risk when you pass · 3+ suncream, 6+ high, 8+ very high</span></div>
@@ -220,6 +227,6 @@
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js" integrity="sha384-4CB9Vtol9LN6lGgBCvmPLbUEZwilrqIvPieSRurgAXAB7FVJaLS9n8WyAIA5wjQ+" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script data-goatcounter="https://alfonpe.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
-<script type="module" src="js/main.js?v=ec4fe273a6"></script>
+<script type="module" src="js/main.js?v=449e8fef1b"></script>
 </body>
 </html>

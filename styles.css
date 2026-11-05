@@ -136,7 +136,8 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .block-head .sub{margin-top:2px}
 .wrap > .block{padding-top:20px;border-top:1px solid var(--line)}
 .split{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
-.split > .block{flex:999 1 600px;min-width:0}
+.split-main{flex:999 1 600px;min-width:0;display:flex;flex-direction:column;gap:28px}
+.split-main > .block + .block{padding-top:20px;border-top:1px solid var(--line)}
 .detail{flex:1 1 300px;max-width:420px;min-width:0;position:sticky;top:20px;display:flex;flex-direction:column;gap:14px;border:1px solid var(--line);border-radius:8px;padding:20px;background:var(--bg)}
 .detail hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
 
@@ -242,6 +243,11 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .chart-box{position:relative;height:240px}
 .chart-box.tall{height:280px}
 .chart-box.short{height:120px}
+/* predicted speed and wind around you: three rows shared through subgrid, so their headings, pictures and
+   bars line up side by side */
+.chart.paired{display:grid;grid-template-rows:subgrid;grid-row:span 3;row-gap:12px}
+.chart.paired > .part{display:flex;flex-direction:column;gap:10px;min-width:0}
+.chart-box.fill{height:100%;min-height:240px}
 .explain{font-size:13px;color:var(--muted)}
 .explain summary{cursor:pointer;color:var(--ink);text-decoration:underline;text-underline-offset:3px;width:max-content;max-width:100%}
 .explain p{margin:6px 0 0;max-width:72ch}
@@ -259,6 +265,7 @@ p.hint{margin:0;font-size:13px;color:var(--muted)}
 
 /* ---------- wind around you (in the chart grid, beside predicted speed) ---------- */
 .expo .seg{align-self:flex-start}
+.expo .tbreak{gap:12px}
 .rose{width:100%;max-width:380px;align-self:center}
 .rose svg{display:block;width:100%;height:auto}
 .rose .ring{fill:none;stroke:var(--row)}

@@ -243,10 +243,11 @@ export function renderExposure() {
 
   const all = tot.head + tot.cross + tot.tail || 1, fmt = m => m < 60 ? `${r0(m)} min` : fmtDur(m * 60);
   const K = [["head", "Headwind", "--head"], ["cross", "Crosswind", "--cross"], ["tail", "Tailwind", "--tail"]];
+  $("#expoLabel").textContent = `Wind mix · ${fmt(all)} moving${part === "all" ? "" : ` in the ${part} half`}`;
   $("#expoBar").innerHTML = K.map(([k, , c]) => `<i style="flex:${tot[k]};background:var(${c})"></i>`).join("");
   $("#expoStats").innerHTML = K.map(([k, n, c]) => `<div><dt><b style="background:var(${c})"></b>${n}</dt><dd>${fmt(tot[k])} <small>${r0(100 * tot[k] / all)}%</small></dd></div>`).join("");
   const h1 = exposure(S, "first").tot.head, h2 = exposure(S, "second").tot.head, hShare = h1 + h2 ? h2 / (h1 + h2) : 0.5;
   $("#expoNote").textContent = part === "all"
-    ? `${fmt(all)} moving. ` + (h1 + h2 < 5 ? "Hardly any headwind on this ride." : hShare >= 0.65 ? `Most of the headwind (${r0(hShare * 100)}%) is in the second half: save something for it.` : hShare <= 0.35 ? `Most of the headwind (${r0((1 - hShare) * 100)}%) is in the first half; the way back is easier.` : "The headwind is spread over the whole ride.")
-    : `${fmt(all)} in the ${part} half, ${r0(100 * tot.head / all)}% of it into the wind.`;
+    ? (h1 + h2 < 5 ? "Hardly any headwind on this ride." : hShare >= 0.65 ? `Most of the headwind (${r0(hShare * 100)}%) is in the second half: save something for it.` : hShare <= 0.35 ? `Most of the headwind (${r0((1 - hShare) * 100)}%) is in the first half; the way back is easier.` : "The headwind is spread over the whole ride.")
+    : `${r0(100 * tot.head / all)}% of it into the wind.`;
 }
