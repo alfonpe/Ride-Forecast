@@ -161,6 +161,8 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .key{display:inline-flex;align-items:center;gap:6px}
 .key b{width:14px;height:3px;border-radius:2px;display:inline-block}
 .key b.sq{width:10px;height:10px;border-radius:2px}
+.key b.dot{width:10px;height:10px;border-radius:50%;border:1.5px solid;background:var(--bg)!important}
+.key[title]{cursor:help}
 .warrow{position:relative;width:28px;height:28px;display:grid;place-items:center}
 .warrow svg{opacity:.9}
 .warrow span{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);font:500 9.5px/1 var(--mono);color:var(--ink);padding:1px 2px;white-space:nowrap;text-shadow:0 0 2px var(--bg),0 0 2px var(--bg),0 0 3px var(--bg)}
@@ -240,14 +242,17 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 .chart-head h3{display:inline;font-size:13px;font-weight:600;color:var(--ink)}
 .chart-head h3::after{content:" · ";font-weight:400;color:var(--muted)}
 .chart-head .sub{font-size:13px}
-.chart-box{position:relative;height:240px}
-.chart-box.tall{height:280px}
-.chart-box.short{height:120px}
+.chart-box{position:relative;flex:1 0 auto;min-height:240px}
+.chart-box > canvas{position:absolute;inset:0}
+.empty-note{margin:0;padding:8px 0;border-top:1px solid var(--row)}
+.chart-box.tall{min-height:280px}
+.chart-box.short{flex:0 0 120px;min-height:120px}
+.rain-amt,.air-part{display:flex;flex-direction:column;gap:10px}
 /* predicted speed and wind around you: three rows shared through subgrid, so their headings, pictures and
    bars line up side by side */
 .chart.paired{display:grid;grid-template-rows:subgrid;grid-row:span 3;row-gap:12px}
 .chart.paired > .part{display:flex;flex-direction:column;gap:10px;min-width:0}
-.chart-box.fill{height:100%;min-height:240px}
+.chart-box.fill{flex:1 0 auto;min-height:240px}
 .explain{font-size:13px;color:var(--muted)}
 .explain summary{cursor:pointer;color:var(--ink);text-decoration:underline;text-underline-offset:3px;width:max-content;max-width:100%}
 .explain p{margin:6px 0 0;max-width:72ch}
@@ -323,6 +328,12 @@ footer a{color:inherit}
 .imgview-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 
 @media (max-width:1000px){
+  .split{flex-direction:column;gap:28px}
+  .split > *{width:100%}
+  .split-main{display:contents}
+  .split-main > .block:first-child{order:1}
+  .split > .detail{order:2}
+  .split-main > #bestPanel{order:3}
   .charts{grid-template-columns:minmax(0,1fr)}
   .detail{position:static;max-width:none}
   #map{height:400px}

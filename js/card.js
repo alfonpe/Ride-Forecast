@@ -14,7 +14,7 @@ import { rainLevel } from "./weather.js";
    No map tiles behind the route: browsers refuse to export a canvas that contains another site's images. */
 
 const W = 1080, H = 1350, PAD = 64;
-const FONT = '"IBM Plex Sans",system-ui,sans-serif', BODY = '"IBM Plex Sans",system-ui,sans-serif';
+const FONT = '"IBM Plex Sans",system-ui,sans-serif', BODY = '"IBM Plex Sans",system-ui,sans-serif', MONO = '"IBM Plex Mono",ui-monospace,monospace';
 const plain = html => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
 function wrap(g, text, maxW) {
@@ -33,17 +33,16 @@ export function drawCard() {
   const g = c.getContext("2d"), S = state.samples, tr = state.track, sim = state.sim;
   const ink = css("--ink"), muted = css("--muted"), line = css("--line"), surface = css("--surface"), accent = css("--accent");
   g.fillStyle = css("--bg"); g.fillRect(0, 0, W, H);
-  g.fillStyle = surface; g.beginPath(); g.roundRect(24, 24, W - 48, H - 48, 36); g.fill();
   g.textBaseline = "alphabetic";
 
   // header
   let y = PAD + 44;
-  g.fillStyle = accent; g.font = `700 24px ${BODY}`; g.fillText("RIDE PLAN", PAD, y);
-  y += 58; g.fillStyle = ink; g.font = `700 52px ${FONT}`;
+  g.fillStyle = muted; g.font = `400 22px ${MONO}`; g.letterSpacing = "3px"; g.fillText("RIDE FORECAST", PAD, y); g.letterSpacing = "0px";
+  y += 62; g.fillStyle = ink; g.font = `600 56px ${FONT}`;
   const name = state.name + (state.orient.rev ? " (reversed)" : "");
   wrap(g, name, W - 2 * PAD).slice(0, 2).forEach((l, i) => g.fillText(l, PAD, y + i * 60));
   y += (wrap(g, name, W - 2 * PAD).length > 1 ? 60 : 0) + 48;
-  g.fillStyle = muted; g.font = `500 30px ${BODY}`;
+  g.fillStyle = css("--faint") || muted; g.font = `400 30px ${BODY}`;
   g.fillText(`${fmtDay(state.startMs)} · ${fmtTime(state.startMs)} → ${fmtTime(state.endMs)} · ${r1(tr.total / 1000)} km${tr.hasEle ? ` · ${r0(tr.gain)} m up` : ""}`, PAD, y);
 
   // route map: colour = head/cross/tailwind, thickness = how strong the wind is there. An out-and-back ride gets two
@@ -52,7 +51,7 @@ export function drawCard() {
   const labels = pickLabels(tr, state.places ? state.places.places : [], state.places ? state.places.summits : []);
   const ob = outAndBack(tr), kTurn = ob ? Math.max(1, Math.min(S.length - 2, Math.round(tr.cum[ob.turn] / tr.total * (S.length - 1)))) : null;
   const bg2 = css("--surface-2");
-  g.fillStyle = bg2; g.beginPath(); g.roundRect(box.x, box.y, box.w, box.h, 24); g.fill();
+  g.fillStyle = bg2; g.beginPath(); g.roundRect(box.x, box.y, box.w, box.h, 16); g.fill();
   g.lineCap = "round"; g.lineJoin = "round";
   const width = s => 3 + Math.min(Math.max(s.ws, 0), 40) / 40 * 19; // 3 px when calm … 22 px at 40+ km/h
   // the overall wind: direction averaged as vectors, and the speed range along the ride
@@ -66,8 +65,8 @@ export function drawCard() {
   const shownHaz = [...state.hazards].sort((a, b) => (a.sev === "bad" ? 0 : 1) - (b.sev === "bad" ? 0 : 1) || a.k0 - b.k0).slice(0, 3);
   const badge = (x, yy, n, col, r = 14) => {
     g.fillStyle = col; g.beginPath(); g.arc(x, yy, r, 0, 7); g.fill();
-    g.strokeStyle = "#fff"; g.lineWidth = 3; g.stroke();
-    g.fillStyle = "#fff"; g.font = `700 ${r + 2}px ${FONT}`; g.textAlign = "center"; g.fillText(String(n), x, yy + (r + 2) * 0.36); g.textAlign = "left";
+    g.strokeStyle = css("--bg"); g.lineWidth = 3; g.stroke();
+    g.fillStyle = css("--bg"); g.font = `600 ${r + 2}px ${MONO}`; g.textAlign = "center"; g.fillText(String(n), x, yy + (r + 2) * 0.36); g.textAlign = "left";
   };
   // one geographic frame for every panel (route + labelled towns, which can sit a few km off it)
   const kx = Math.cos(rad(tr.pts[0].lat));
@@ -88,16 +87,16 @@ export function drawCard() {
       tr.pts.forEach((_, i) => { const [a, b] = P(i); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke(); g.globalAlpha = 1;
     }
     const seg = (k, fn) => { g.beginPath(); for (let i = S[k].i; i <= Math.min(S[k + 1].i + 1, nPts - 1); i++) { const [a, b] = P(i); i === S[k].i ? g.moveTo(a, b) : g.lineTo(a, b); } fn(); };
-    for (let k = k0; k < k1; k++) seg(k, () => { g.strokeStyle = "rgba(0,0,0,.16)"; g.lineWidth = width(S[k]) + 6; g.stroke(); });
+    for (let k = k0; k < k1; k++) seg(k, () => { g.strokeStyle = bg2; g.lineWidth = width(S[k]) + 8; g.stroke(); });
     for (let k = k0; k < k1; k++) seg(k, () => { g.strokeStyle = catColor(S[k].cat); g.lineWidth = width(S[k]); g.stroke(); });
 
     let wb = null;
     if (windBadge) { // round wind badge in the top-right corner
       const cx = pb.x + pb.w - 72, cy = pb.y + 70;
-      g.fillStyle = surface; g.beginPath(); g.arc(cx, cy, 38, 0, 7); g.fill();
+      g.fillStyle = css("--bg"); g.beginPath(); g.arc(cx, cy, 38, 0, 7); g.fill(); g.strokeStyle = line; g.lineWidth = 2; g.stroke();
       arrow(cx, cy, 1);
       g.textAlign = "center"; g.fillStyle = ink; g.font = `600 22px ${BODY}`; g.fillText(`from ${compass(from)}`, cx, cy + 66);
-      g.fillStyle = muted; g.font = `500 20px ${BODY}`; g.fillText(windRange, cx, cy + 92); g.textAlign = "left";
+      g.fillStyle = muted; g.font = `400 20px ${MONO}`; g.fillText(windRange, cx, cy + 92); g.textAlign = "left";
       wb = [cx - 70, cy - 42, 140, 145];
     }
     if (title) { g.fillStyle = ink; g.font = `600 21px ${BODY}`; g.fillText(title, pb.x + 22, pb.y + 38); }
@@ -150,11 +149,11 @@ export function drawCard() {
     here.forEach(({ z, n }) => { const [px, py] = hazAt(z); badge(px, py, n, css(z.sev === "bad" ? "--head" : "--cross")); });
     const dot = (i, col, label) => {
       const [a, b] = P(i); g.fillStyle = col; g.beginPath(); g.arc(a, b, 17, 0, 7); g.fill();
-      g.strokeStyle = "#fff"; g.lineWidth = 4; g.stroke(); g.fillStyle = "#fff"; g.font = `700 18px ${FONT}`; g.textAlign = "center"; g.fillText(label, a, b + 6); g.textAlign = "left";
+      g.strokeStyle = bg2; g.lineWidth = 4; g.stroke(); g.fillStyle = css("--bg"); g.font = `600 18px ${MONO}`; g.textAlign = "center"; g.fillText(label, a, b + 6); g.textAlign = "left";
     };
     if (split) { const [a, b] = P(S[kTurn].i); g.strokeStyle = ink; g.lineWidth = 3; g.fillStyle = bg2; g.beginPath(); g.arc(a, b, 9, 0, 7); g.fill(); g.stroke(); } // the turnaround
-    if (hasF) dot(nPts - 1, css("--head"), "F");
-    if (hasS) dot(0, css("--tail"), "S");
+    if (hasF) dot(nPts - 1, ink, "F");
+    if (hasS) dot(0, ink, "S");
     g.restore();
   };
 
@@ -201,15 +200,17 @@ export function drawCard() {
     ["Gusts", `${r0(maxOf(S, "gust"))} km/h`, "strongest"],
     water ? ["Water", water.len > 0 ? `${r0(water.len)} km` : "—", "longest stretch without"] : ["Finish", fmtTime(state.endMs), fmtDay(state.endMs)]
   ];
-  const tw = (W - 2 * PAD - 2 * 20) / 3, th = 112;
+  const tw = (W - 2 * PAD - 2 * 32) / 3, th = 112;
+  g.strokeStyle = line; g.lineWidth = 2; g.beginPath(); g.moveTo(PAD, y); g.lineTo(W - PAD, y); g.stroke();
   tiles.forEach(([l, v, d], k) => {
-    const tx = PAD + (k % 3) * (tw + 20), ty = y + Math.floor(k / 3) * (th + 16);
-    g.fillStyle = css("--surface-2"); g.beginPath(); g.roundRect(tx, ty, tw, th, 20); g.fill();
-    g.fillStyle = muted; g.font = `600 20px ${BODY}`; g.fillText(l.toUpperCase(), tx + 22, ty + 34);
-    g.fillStyle = ink; g.font = `600 40px ${FONT}`; g.fillText(v, tx + 22, ty + 79);
-    g.fillStyle = muted; g.font = `500 21px ${BODY}`; g.fillText(d, tx + 22, ty + 104);
+    const tx = PAD + (k % 3) * (tw + 32), ty = y + 8 + Math.floor(k / 3) * (th + 8);
+    g.fillStyle = muted; g.font = `400 21px ${BODY}`; g.fillText(l, tx, ty + 30);
+    g.fillStyle = ink; g.font = `500 40px ${MONO}`; g.fillText(v, tx, ty + 76);
+    g.fillStyle = muted; g.font = `400 21px ${BODY}`; g.fillText(d, tx, ty + 104);
   });
-  y += 2 * th + 16 + 42;
+  const end = y + 8 + 2 * th + 8 + 14;
+  g.strokeStyle = line; g.lineWidth = 2; g.beginPath(); g.moveTo(PAD, end); g.lineTo(W - PAD, end); g.stroke();
+  y = end + 58;
 
   // what matters most: hazards first, then rain and kit advice
   const lines = [
@@ -237,7 +238,7 @@ export function drawCard() {
 
   // footer
   g.strokeStyle = line; g.lineWidth = 2; g.beginPath(); g.moveTo(PAD, H - 108); g.lineTo(W - PAD, H - 108); g.stroke();
-  g.fillStyle = muted; g.font = `500 24px ${BODY}`;
+  g.fillStyle = muted; g.font = `400 22px ${MONO}`;
   g.fillText("Ride Forecast · weather along your route, when you ride it", PAD, H - 66);
   return c;
 }

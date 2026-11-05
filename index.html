@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
-<link rel="stylesheet" href="styles.css?v=449e8fef1b">
-<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=449e8fef1b","./js/card.js":"./js/card.js?v=449e8fef1b","./js/charts.js":"./js/charts.js?v=449e8fef1b","./js/demo.js":"./js/demo.js?v=449e8fef1b","./js/files.js":"./js/files.js?v=449e8fef1b","./js/geo.js":"./js/geo.js?v=449e8fef1b","./js/hazards.js":"./js/hazards.js?v=449e8fef1b","./js/hover.js":"./js/hover.js?v=449e8fef1b","./js/icons.js":"./js/icons.js?v=449e8fef1b","./js/labels.js":"./js/labels.js?v=449e8fef1b","./js/main.js":"./js/main.js?v=449e8fef1b","./js/map.js":"./js/map.js?v=449e8fef1b","./js/net.js":"./js/net.js?v=449e8fef1b","./js/orient.js":"./js/orient.js?v=449e8fef1b","./js/pacing.js":"./js/pacing.js?v=449e8fef1b","./js/places.js":"./js/places.js?v=449e8fef1b","./js/pois.js":"./js/pois.js?v=449e8fef1b","./js/render.js":"./js/render.js?v=449e8fef1b","./js/share.js":"./js/share.js?v=449e8fef1b","./js/shortlink.js":"./js/shortlink.js?v=449e8fef1b","./js/state.js":"./js/state.js?v=449e8fef1b","./js/stats.js":"./js/stats.js?v=449e8fef1b","./js/time.js":"./js/time.js?v=449e8fef1b","./js/util.js":"./js/util.js?v=449e8fef1b","./js/weather.js":"./js/weather.js?v=449e8fef1b"}}</script><!-- version:end -->
+<link rel="stylesheet" href="styles.css?v=90909733be">
+<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=90909733be","./js/card.js":"./js/card.js?v=90909733be","./js/charts.js":"./js/charts.js?v=90909733be","./js/demo.js":"./js/demo.js?v=90909733be","./js/files.js":"./js/files.js?v=90909733be","./js/geo.js":"./js/geo.js?v=90909733be","./js/hazards.js":"./js/hazards.js?v=90909733be","./js/hover.js":"./js/hover.js?v=90909733be","./js/icons.js":"./js/icons.js?v=90909733be","./js/labels.js":"./js/labels.js?v=90909733be","./js/main.js":"./js/main.js?v=90909733be","./js/map.js":"./js/map.js?v=90909733be","./js/net.js":"./js/net.js?v=90909733be","./js/orient.js":"./js/orient.js?v=90909733be","./js/pacing.js":"./js/pacing.js?v=90909733be","./js/places.js":"./js/places.js?v=90909733be","./js/pois.js":"./js/pois.js?v=90909733be","./js/render.js":"./js/render.js?v=90909733be","./js/share.js":"./js/share.js?v=90909733be","./js/shortlink.js":"./js/shortlink.js?v=90909733be","./js/state.js":"./js/state.js?v=90909733be","./js/stats.js":"./js/stats.js?v=90909733be","./js/time.js":"./js/time.js?v=90909733be","./js/util.js":"./js/util.js?v=90909733be","./js/weather.js":"./js/weather.js?v=90909733be"}}</script><!-- version:end -->
 </head>
 <body>
 <div class="wrap">
@@ -168,12 +168,20 @@
         <div class="chart-head"><h3>Rain &amp; cloud</h3><span class="sub">% · rain chance, a second opinion, cloud cover</span></div>
         <div class="chart-box"><canvas id="cRain"></canvas></div>
         <details class="explain"><summary>What's the “second opinion” line?</summary><p>The bold line is a second opinion: the European weather centre runs its forecast about 50 times from slightly different starting points, and this is the share of those runs that bring rain when you pass. Near 0% or 100% means the runs agree; in between, the forecast is uncertain, so pack a jacket and check again closer to the day.</p></details>
+        <div class="rain-amt">
         <div class="sub">How hard it rains when you pass (mm/h): <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 30%,transparent)"></b>drizzle &lt;0.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 55%,transparent)"></b>light &lt;2.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 80%,transparent)"></b>moderate &lt;7.6</span> <span class="key"><b class="sq" style="background:var(--cool)"></b>heavy</span></div>
         <div class="chart-box short"><canvas id="cRainAmt"></canvas></div>
+        </div>
+        <p class="sub empty-note" id="rainAmtNone" hidden>No rain amount forecast along the route.</p>
       </div>
       <div class="chart">
-        <div class="chart-head"><h3>Wind direction</h3><span class="sub">where the wind comes from vs. your heading</span></div>
-        <div class="chart-box tall"><canvas id="cDir"></canvas></div>
+        <div class="chart-head"><h3>UV index</h3><span class="sub">sunburn risk when you pass · 3+ suncream, 6+ high, 8+ very high</span></div>
+        <div class="chart-box"><canvas id="cUV"></canvas></div>
+        <div class="air-part">
+          <div class="chart-head"><h3>Air quality</h3><span class="sub" id="airSub">European AQI</span></div>
+          <div class="chart-box short"><canvas id="cAir"></canvas></div>
+        </div>
+        <p class="sub empty-note" id="airNone" hidden></p>
       </div>
       <div class="chart paired">
         <div class="part"><div class="chart-head"><h3>Predicted speed</h3><span class="sub">km/h moving · with this wind vs. in still air</span></div></div>
@@ -197,14 +205,6 @@
           <p class="sub" id="expoNote"></p>
         </div>
       </div>
-      <div class="chart">
-        <div class="chart-head"><h3>UV index</h3><span class="sub">sunburn risk when you pass · 3+ suncream, 6+ high, 8+ very high</span></div>
-        <div class="chart-box"><canvas id="cUV"></canvas></div>
-      </div>
-      <div class="chart">
-        <div class="chart-head"><h3>Air quality</h3><span class="sub" id="airSub">European AQI</span></div>
-        <div class="chart-box"><canvas id="cAir"></canvas></div>
-      </div>
     </div>
   </section>
 
@@ -227,6 +227,6 @@
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js" integrity="sha384-4CB9Vtol9LN6lGgBCvmPLbUEZwilrqIvPieSRurgAXAB7FVJaLS9n8WyAIA5wjQ+" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script data-goatcounter="https://alfonpe.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
-<script type="module" src="js/main.js?v=449e8fef1b"></script>
+<script type="module" src="js/main.js?v=90909733be"></script>
 </body>
 </html>

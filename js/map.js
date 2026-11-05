@@ -138,7 +138,7 @@ export function drawLegend([lo, hi]) {
   const ticks = [0, .5, 1].map(f => `<span style="left:${f * 100}%">${lbl(Math.round(lo + (hi - lo) * f))}</span>`).join("");
   $("#legend").innerHTML =
     `<div class="cbar"><span class="cbar-title">${r.label} (${r.unit})</span><i style="background:linear-gradient(90deg,${grad})"></i><div class="cbar-ticks num">${ticks}</div></div>` +
-    `<span>Arrows point where the wind blows, number is forecast km/h at 10 m:</span>` +
-    `<span class="key"><b style="background:var(--head)"></b>headwind</span><span class="key"><b style="background:var(--cross)"></b>crosswind</span><span class="key"><b style="background:var(--tail)"></b>tailwind</span>` +
-    (state.pois && state.pois.length ? `<span>From OpenStreetMap:</span><span class="key"><b style="background:var(--cool)"></b>drinking water</span><span class="key"><b style="background:var(--cafe)"></b>café / bakery</span><span class="key"><b style="background:var(--muted)"></b>shop / petrol</span>` : "");
+    `<span class="key" title="Arrows point where the wind blows; the number is the forecast wind in km/h at 10 m">${arrowSvg(135, css("--muted"), 13)}wind, km/h</span>` +
+    `<span class="key"><b style="background:var(--head)"></b>head</span><span class="key"><b style="background:var(--cross)"></b>cross</span><span class="key"><b style="background:var(--tail)"></b>tail</span>` +
+    (state.pois && state.pois.length ? `<span class="key" title="Drinking water from OpenStreetMap"><b class="dot" style="border-color:var(--cool)"></b>water</span><span class="key" title="Cafés and bakeries from OpenStreetMap"><b class="dot" style="border-color:var(--cafe)"></b>café</span><span class="key" title="Shops and petrol stations from OpenStreetMap"><b class="dot" style="border-color:var(--muted)"></b>shop</span>` : "");
 }

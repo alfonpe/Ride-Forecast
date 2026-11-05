@@ -94,7 +94,9 @@ export function renderCharts(only) {
     lineDs("Cloud cover", xy("cloud"), muted, { fill: "origin", backgroundColor: alpha(css("--elev"), .35), borderWidth: 1.5, order: 10 })
   ] }, options: opts({ y: yAx({ min: 0, max: 100, ticks: { callback: v => v + "%" } }) }, "%") });
 
-  // how hard it rains when you pass; bars shade darker with intensity
+  // how hard it rains when you pass; bars shade darker with intensity. On a dry ride the empty chart folds to one line.
+  const wet = S.some(s => s.precip >= 0.1);
+  if (want("cRainAmt")) { $(".rain-amt").hidden = !wet; $("#rainAmtNone").hidden = wet; }
   const lvlAlpha = { dry: 0, drizzle: .3, light: .55, moderate: .8, heavy: 1, violent: 1 };
   mk("#cRainAmt", { type: "bar", data: { datasets: [
     { type: "bar", label: "Rain", data: xy("precip"), backgroundColor: S.map(s => alpha(css("--cool"), lvlAlpha[rainLevel(s.precip)[1]] || .3)), borderWidth: 0, borderRadius: 3, barPercentage: 1, categoryPercentage: .85 }
@@ -107,20 +109,18 @@ export function renderCharts(only) {
     lineDs("Still air", xy("spd0"), muted, { borderDash: [4, 4], borderWidth: 1.5 })
   ] }, options: opts({ y: yAx({ suggestedMin: 0, ticks: { callback: v => v } }) }, " km/h") });
 
-  const card = { 0: "N", 90: "E", 180: "S", 270: "W", 360: "N" };
-  const dir = mk("#cDir", { type: "scatter", data: { datasets: [
-    { label: "Wind from", data: xy("wdir"), pointRadius: 4.5, pointHoverRadius: 6, backgroundColor: S.map(s => catColor(s.cat)), borderColor: css("--surface"), borderWidth: 1, pointStyle: "circle" },
-    { label: "Your heading", data: xy("brg"), pointRadius: 2.2, backgroundColor: muted, borderWidth: 0, pointStyle: "circle" }
-  ] }, options: opts({ y: yAx({ min: 0, max: 360, ticks: { stepSize: 45, callback: v => card[v] || compass(v) } }) }, "°") });
-  if (dir) dir.options.plugins.tooltip.callbacks.label = i => ` ${i.dataset.label}: ${compass(i.parsed.y)} (${r0(i.parsed.y)}°)`;
-
   mk("#cUV", { type: "line", data: { datasets: [lineDs("UV index", xy("uv"), css("--warm"), { fill: "origin", backgroundColor: alpha(css("--warm"), .16), tension: .3 })] },
     options: opts({ y: yAx({ min: 0, suggestedMax: 8, ticks: { stepSize: 2 } }) }, "", false) });
 
   const A = state.air, hasAir = A && A.some(Boolean);
+  // no air-quality forecast (yet, or this far ahead): its chart folds to one line and UV takes the room
+  if (want("cAir")) {
+    $(".air-part").hidden = !hasAir; $("#airNone").hidden = hasAir;
+    $("#airNone").textContent = A === undefined ? "Air quality: loading…" : "Air quality: no forecast for this date (it covers about the next 5 days).";
+  }
   mk("#cAir", { type: "line", data: { datasets: hasAir ? [lineDs("European AQI", S.map((s, k) => ({ x: s.km, y: A[k] ? A[k].aqi : null })), css("--accent"), { spanGaps: true, fill: "origin", backgroundColor: alpha(css("--accent"), .12) })] : [] },
     options: opts({ y: yAx({ min: 0, suggestedMax: 60, ticks: { stepSize: 20 } }) }, "", false) });
-  $("#airSub").textContent = A === undefined ? "European AQI · loading…" : hasAir ? "European AQI · under 20 good, 20–40 fair, 40–60 moderate, 60+ poor" : "No air-quality forecast for this date (it covers about the next 5 days)";
+  $("#airSub").textContent = "European AQI · under 20 good, 20–40 fair, 40–60 moderate, 60+ poor";
 }
 
 /* ---------- best time to leave ----------
