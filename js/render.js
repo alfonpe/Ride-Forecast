@@ -1,4 +1,4 @@
-import { renderBest, renderCharts } from "./charts.js";
+import { renderBest, renderCharts, renderExposure } from "./charts.js";
 import { compass, locate } from "./geo.js";
 import { HAZ } from "./hazards.js";
 import { isLoop } from "./orient.js";
@@ -48,17 +48,18 @@ export function renderSummary() {
     conf = ["Confidence", lvl, `±${r1(tSp / 2)} °C · ±${r0(wSp / 2)} km/h wind`];
   }
   const tiles = [
-    ["dist", "Distance", `${r1(tr.total / 1000)} <small>km</small>`, tr.hasEle ? `${r0(tr.gain)} m climbing${tr.eleSrc === "dem" ? " (terrain model)" : ""}` : "No elevation available"],
-    ["clock", "Ride time", fmtDur(dur), `${fmtTime(state.startMs)} → ${fmtTime(state.endMs)}${sim.stopSec ? ` · ${r0(sim.stopSec / 60)} min stops` : ""}`],
-    ["therm", "On the bike", `${span(minOf(S, "bike"), maxOf(S, "bike"))} <small>°C</small>`, `Air ${span(minOf(S, "temp"), maxOf(S, "temp"))} °C`],
-    ["wind", "Net wind", `${avgHead >= 0 ? "+" : "−"}${r1(Math.abs(avgHead))} <small>km/h</small>`, `${avgHead >= 0.5 ? "Headwind" : avgHead <= -0.5 ? "Tailwind" : "Neutral"} · ${sim.windMin >= 0 ? "+" : "−"}${r0(Math.abs(sim.windMin))} min vs still air`],
-    ["gust", "Strongest gust", `${r0(maxOf(S, "gust"))} <small>km/h</small>`, `Max sustained ${r0(maxOf(S, "ws"))} km/h at 10 m`],
-    ["drop", "Rain", lvl[1] === "dry" ? `Dry` : lvl[2].replace(" rain", "") + ` <small>rain</small>`,
+    [null, "Distance", `${r1(tr.total / 1000)} <small>km</small>`, tr.hasEle ? `${r0(tr.gain)} m climbing${tr.eleSrc === "dem" ? " (terrain model)" : ""}` : "No elevation available"],
+    [null, "Ride time", fmtDur(dur), `${fmtTime(state.startMs)} → ${fmtTime(state.endMs)}${sim.stopSec ? ` · ${r0(sim.stopSec / 60)} min stops` : ""}`],
+    [null, "On the bike", `${span(minOf(S, "bike"), maxOf(S, "bike"))} <small>°C</small>`, `Air ${span(minOf(S, "temp"), maxOf(S, "temp"))} °C`],
+    [avgHead >= 0.5 ? "head" : avgHead <= -0.5 ? "tail" : null, "Net wind", `${avgHead >= 0 ? "+" : "−"}${r1(Math.abs(avgHead))} <small>km/h</small>`, `${avgHead >= 0.5 ? "Headwind" : avgHead <= -0.5 ? "Tailwind" : "Neutral"} · ${sim.windMin >= 0 ? "+" : "−"}${r0(Math.abs(sim.windMin))} min vs still air`],
+    [null, "Strongest gust", `${r0(maxOf(S, "gust"))} <small>km/h</small>`, `Max sustained ${r0(maxOf(S, "ws"))} km/h at 10 m`],
+    [null, "Rain", lvl[1] === "dry" ? `Dry` : lvl[2].replace(" rain", "") + ` <small>rain</small>`,
       lvl[1] === "dry" ? `${r0(maxPop)}% max chance, no rain amount forecast` : `up to ${r1(peak)} mm/h · ~${r1(rain)} mm total · ${r0(maxPop)}% max chance`],
-    ["shield", ...conf],
-    ["sun", "Sun & air", `UV ${r0(maxOf(S, "uv"))}`, `${uvLevel(maxOf(S, "uv"))} UV · ${airTile()}`]
+    [null, ...conf],
+    [null, "Sun & air", `UV ${r0(maxOf(S, "uv"))}`, `${uvLevel(maxOf(S, "uv"))} UV · ${airTile()}`]
   ];
-  $("#summary").innerHTML = tiles.map(([ic, l, v, d]) => `<div class="tile"><div class="th"><span class="ic">${icon(ic, 15)}</span><span class="label">${l}</span></div><span class="v">${v}</span><span class="d">${d}</span></div>`).join("");
+  $("#summary").innerHTML = tiles.map(([cls, l, v, d]) => `<div><dt>${l}</dt><dd class="v${cls ? " " + cls : ""}">${v}</dd><dd class="d">${d}</dd></div>`).join("");
+  $("#routeWhen").textContent = `· ${fmtDay(state.startMs)}, ${fmtTime(state.startMs)}`;
 }
 
 export function airTile() {
@@ -82,16 +83,16 @@ export function renderReadout() {
   const pol = a && a.pollen.filter(p => p.v >= p.hi / 5).sort((x, y) => y.v / y.hi - x.v / x.hi)[0];
   $("#readout").innerHTML = `
     <div><div class="when">km ${r1(km)} · ${fmtTime(state.startMs + p.t * 1000)}</div>
-    <div class="wx" style="margin-top:4px">${icon(ic, 20)} ${lbl}${state.track.hasEle ? ` · ${r0(p.ele)} m` : ""}</div></div>
+    <div class="wx" style="margin-top:6px">${icon(ic, 20)} ${lbl}${state.track.hasEle ? ` · ${r0(p.ele)} m` : ""}</div></div>
     <dl>
-      <dt>Temperature</dt><dd>${r1(s.temp)} °C${e ? ` <span class="sub">(${r0(e.t10)}–${r0(e.t90)})</span>` : ""}</dd>
-      <dt>On the bike</dt><dd>${r1(s.bike)} °C <span class="sub">at ${r0(s.air)} km/h airspeed</span></dd>
-      <dt>Wind</dt><dd><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)} ${r0(s.ws)} km/h from ${compass(s.wdir)}</span>, gusts ${r0(s.gust)}</dd>
-      <dt>For you</dt><dd>${windLabel(s)} <span class="sub">heading ${compass(s.brg)}</span></dd>
-      <dt>Speed here</dt><dd>${r1(s.spd)} km/h <span class="sub">(${r1(s.spd0)} in still air)</span></dd>
-      <dt>Rain</dt><dd>${r0(s.pop)}% chance${s.precip >= 0.1 ? ` · ${rainLevel(s.precip)[2].toLowerCase()}, ${r1(s.precip)} mm/h` : ", no rain amount"}${e && e.rain != null ? ` <span class="sub">· ${r0(e.rain)}% of forecast runs wet</span>` : ""}</dd>
-      <dt>Sky</dt><dd>${r0(s.cloud)}% cloud · ${r0(s.rh)}% humidity</dd>
-      <dt>Sun &amp; air</dt><dd>UV ${r1(s.uv)}${a ? ` · AQI ${r0(a.aqi)} <span class="sub">${aqiLevel(a.aqi).toLowerCase()}</span>` : ""}${pol ? ` · ${pol.name} pollen ${pol.v >= pol.hi ? "high" : "moderate"}` : ""}</dd>
+      <div><dt>Temperature</dt><dd>${r1(s.temp)} °C${e ? ` <span class="sub">(${r0(e.t10)}–${r0(e.t90)})</span>` : ""}</dd></div>
+      <div><dt>On the bike</dt><dd>${r1(s.bike)} °C <span class="sub">at ${r0(s.air)} km/h airspeed</span></dd></div>
+      <div class="full"><dt>Wind</dt><dd><span class="dir">${arrowSvg((s.wdir + 180) % 360, catColor(s.cat), 14)} ${r0(s.ws)} km/h from ${compass(s.wdir)}</span>, gusts ${r0(s.gust)}</dd></div>
+      <div><dt>For you</dt><dd>${windLabel(s)} <span class="sub">heading ${compass(s.brg)}</span></dd></div>
+      <div><dt>Speed here</dt><dd>${r1(s.spd)} km/h <span class="sub">(${r1(s.spd0)} in still air)</span></dd></div>
+      <div class="full"><dt>Rain</dt><dd>${r0(s.pop)}% chance${s.precip >= 0.1 ? ` · ${rainLevel(s.precip)[2].toLowerCase()}, ${r1(s.precip)} mm/h` : ", no rain amount"}${e && e.rain != null ? ` <span class="sub">· ${r0(e.rain)}% of forecast runs wet</span>` : ""}</dd></div>
+      <div class="full"><dt>Sky</dt><dd>${r0(s.cloud)}% cloud · ${r0(s.rh)}% humidity</dd></div>
+      <div class="full"><dt>Sun &amp; air</dt><dd>UV ${r1(s.uv)}${a ? ` · AQI ${r0(a.aqi)} <span class="sub">${aqiLevel(a.aqi).toLowerCase()}</span>` : ""}${pol ? ` · ${pol.name} pollen ${pol.v >= pol.hi ? "high" : "moderate"}` : ""}</dd></div>
     </dl>`;
 }
 
@@ -244,7 +245,7 @@ export function renderTimeBreak() {
 
 export function renderAll(fit) {
   resetTokens(); // theme may have changed since the last render
-  renderSummary(); renderHazards(); renderNotes(); drawMap(fit); renderCharts(); renderBest(); renderTable(); renderReadout(); renderDirection(); renderTimeBreak();
+  renderSummary(); renderHazards(); renderNotes(); drawMap(fit); renderCharts(); renderBest(); renderTable(); renderReadout(); renderDirection(); renderTimeBreak(); renderExposure();
   const sc = $("#scrub"); sc.max = r1(state.track.total / 1000);
 }
 

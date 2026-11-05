@@ -6,48 +6,48 @@
 <title>Ride Forecast</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="styles.css?v=2118ccdb3a">
-<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=2118ccdb3a","./js/card.js":"./js/card.js?v=2118ccdb3a","./js/charts.js":"./js/charts.js?v=2118ccdb3a","./js/demo.js":"./js/demo.js?v=2118ccdb3a","./js/files.js":"./js/files.js?v=2118ccdb3a","./js/geo.js":"./js/geo.js?v=2118ccdb3a","./js/hazards.js":"./js/hazards.js?v=2118ccdb3a","./js/hover.js":"./js/hover.js?v=2118ccdb3a","./js/icons.js":"./js/icons.js?v=2118ccdb3a","./js/labels.js":"./js/labels.js?v=2118ccdb3a","./js/main.js":"./js/main.js?v=2118ccdb3a","./js/map.js":"./js/map.js?v=2118ccdb3a","./js/net.js":"./js/net.js?v=2118ccdb3a","./js/orient.js":"./js/orient.js?v=2118ccdb3a","./js/pacing.js":"./js/pacing.js?v=2118ccdb3a","./js/places.js":"./js/places.js?v=2118ccdb3a","./js/pois.js":"./js/pois.js?v=2118ccdb3a","./js/render.js":"./js/render.js?v=2118ccdb3a","./js/share.js":"./js/share.js?v=2118ccdb3a","./js/shortlink.js":"./js/shortlink.js?v=2118ccdb3a","./js/state.js":"./js/state.js?v=2118ccdb3a","./js/stats.js":"./js/stats.js?v=2118ccdb3a","./js/time.js":"./js/time.js?v=2118ccdb3a","./js/util.js":"./js/util.js?v=2118ccdb3a","./js/weather.js":"./js/weather.js?v=2118ccdb3a"}}</script><!-- version:end -->
+<link rel="stylesheet" href="styles.css?v=7a05d979e8">
+<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=7a05d979e8","./js/card.js":"./js/card.js?v=7a05d979e8","./js/charts.js":"./js/charts.js?v=7a05d979e8","./js/demo.js":"./js/demo.js?v=7a05d979e8","./js/files.js":"./js/files.js?v=7a05d979e8","./js/geo.js":"./js/geo.js?v=7a05d979e8","./js/hazards.js":"./js/hazards.js?v=7a05d979e8","./js/hover.js":"./js/hover.js?v=7a05d979e8","./js/icons.js":"./js/icons.js?v=7a05d979e8","./js/labels.js":"./js/labels.js?v=7a05d979e8","./js/main.js":"./js/main.js?v=7a05d979e8","./js/map.js":"./js/map.js?v=7a05d979e8","./js/net.js":"./js/net.js?v=7a05d979e8","./js/orient.js":"./js/orient.js?v=7a05d979e8","./js/pacing.js":"./js/pacing.js?v=7a05d979e8","./js/places.js":"./js/places.js?v=7a05d979e8","./js/pois.js":"./js/pois.js?v=7a05d979e8","./js/render.js":"./js/render.js?v=7a05d979e8","./js/share.js":"./js/share.js?v=7a05d979e8","./js/shortlink.js":"./js/shortlink.js?v=7a05d979e8","./js/state.js":"./js/state.js?v=7a05d979e8","./js/stats.js":"./js/stats.js?v=7a05d979e8","./js/time.js":"./js/time.js?v=7a05d979e8","./js/util.js":"./js/util.js?v=7a05d979e8","./js/weather.js":"./js/weather.js?v=7a05d979e8"}}</script><!-- version:end -->
 </head>
 <body>
 <div class="wrap">
-  <header class="appbar">
-    <div class="brand">
-      <div class="mark" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c3 0 3-5 7-5s3-5 7-5"/><circle cx="3" cy="15" r="1.6" fill="currentColor"/><circle cx="17" cy="5" r="1.6" fill="currentColor"/></svg></div>
-      <div style="min-width:0"><h1>Ride Forecast</h1><div class="sub">Weather along your route, at the moment you ride through it</div></div>
+  <header class="top">
+    <div class="title">
+      <span class="eyebrow">Ride forecast</span>
+      <h1><button class="name-btn" id="nameBtn" type="button" title="Rename this route"><span id="routeName">Demo route</span><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3z"/></svg></button><input class="name-input" id="nameInput" type="text" maxlength="80" aria-label="Route name" hidden> <span class="sub" id="routeWhen"></span></h1>
     </div>
-    <button class="pill pill-edit" id="nameBtn" type="button" title="Rename this route"><span class="dot"></span><span id="routeName">Demo route</span><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3z"/></svg></button>
-    <input class="pill name-input" id="nameInput" type="text" maxlength="80" aria-label="Route name" hidden>
-    <div class="pill" id="tzPill" title="Times are shown in the route's local time zone"><svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5V10l3 2"/></svg><span id="tzName">—</span></div>
-    <button class="btn" id="share" type="button"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12l4-4M7 9.5l-2 2a3 3 0 0 0 4.2 4.2l2-2M13 10.5l2-2A3 3 0 0 0 10.8 4.3l-2 2"/></svg>Share link</button>
-    <button class="btn" id="shareImg" type="button"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="8" cy="9" r="1.6"/><path d="M17 13l-4-4-7 7"/></svg>Share image</button>
-    <button class="btn icon" id="theme" type="button" aria-label="Theme: auto"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg></button>
+    <div class="top-actions">
+      <span class="muted" id="tzPill" title="Times are shown in the route's local time zone"><span id="tzName">—</span></span>
+      <button class="btn" id="share" type="button">Share link</button>
+      <button class="btn" id="shareImg" type="button">Share image</button>
+      <button class="btn icon" id="theme" type="button" aria-label="Theme: auto"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg></button>
+    </div>
   </header>
 
   <form class="controls" id="form" novalidate>
     <div class="field file-field">
-      <span class="label">Route file (GPX, TCX, FIT)</span>
+      <span class="label">Route file</span>
       <label class="drop" id="drop" for="file">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15c3 0 3-4 6-4s3-5 6-5"/><circle cx="4" cy="15" r="1.8"/><circle cx="16" cy="6" r="1.8"/></svg>
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15c3 0 3-4 6-4s3-5 6-5"/><circle cx="4" cy="15" r="1.8"/><circle cx="16" cy="6" r="1.8"/></svg>
         <span id="fileLabel">Drop a GPX, TCX or FIT file, or Garmin .zip</span>
         <input type="file" id="file" accept=".gpx,.tcx,.fit,.zip,.gz,application/gpx+xml,application/vnd.garmin.tcx+xml,application/xml,text/xml,application/zip">
       </label>
       <span class="hint" id="eleHint"></span>
     </div>
     <div class="field speed-field">
-      <label class="label" for="speed">Speed, no wind (km/h)</label>
-      <input type="number" id="speed" min="5" max="60" step="0.5" value="27">
+      <label class="label" for="speed">Speed, no wind</label>
+      <span class="with-unit"><input type="number" id="speed" min="5" max="60" step="0.5" value="27"> km/h</span>
       <span class="hint">flat, still-air average</span>
     </div>
-    <div class="field">
+    <div class="field start-field">
       <div class="label-row"><label class="label" for="start" id="startLabel">Start time</label>
         <span class="seg mini" id="timeMode" role="group" aria-label="Plan the ride by"><button type="button" data-mode="start" aria-pressed="true">Start at</button><button type="button" data-mode="arrive" aria-pressed="false">Home by</button></span></div>
       <input type="datetime-local" id="start">
       <span class="hint" id="tzHint">route local time</span>
     </div>
-    <div class="field">
+    <div class="field stops-field">
       <label class="label" for="stops">Stops (km@min)</label>
       <input type="text" id="stops" placeholder="e.g. 45@20, 90@10" autocomplete="off" spellcheck="false">
       <span class="hint" id="stopsHint">café or refill stops along the way</span>
@@ -67,8 +67,14 @@
       <select id="trackSel"></select>
       <span class="hint">this file has several tracks</span>
     </div>
-    <label class="check" for="hills"><input type="checkbox" id="hills" checked> Slower on climbs, faster on descents</label>
-    <button class="go" id="go" type="submit">Get forecast</button>
+    <div class="field check-field">
+      <label class="check" for="hills"><input type="checkbox" id="hills" checked> Slower on climbs</label>
+      <span class="hint">faster on descents</span>
+    </div>
+    <div class="field go-field">
+      <button class="go" id="go" type="submit">Get forecast</button>
+      <span class="hint"></span>
+    </div>
   </form>
   <div class="imgview" id="linkView" hidden role="dialog" aria-modal="true" aria-label="Share this ride plan">
     <div class="imgview-box linkbox">
@@ -93,15 +99,15 @@
         <button class="btn" type="button" data-close>Close</button>
       </div></div>
   </div>
-  <section class="panel import" id="sharedBanner" hidden aria-live="polite"></section>
+  <section class="banner import" id="sharedBanner" hidden aria-live="polite"></section>
   <div class="status" id="status" role="status"></div>
 
-  <section class="summary" id="summary" aria-label="Ride summary"></section>
+  <dl class="summary" id="summary" aria-label="Ride summary"></dl>
 
   <section class="split">
-    <div class="panel">
-      <div class="panel-head">
-        <div><h2>Route map</h2><div class="sub">Colour the route by</div></div>
+    <div class="block">
+      <div class="block-head">
+        <div><h2 class="section-title">Route</h2><div class="sub">Colour the route by</div></div>
         <div class="seg" id="metric" role="group" aria-label="Colour route by">
           <button type="button" data-m="head" aria-pressed="true">Head/tailwind</button>
           <button type="button" data-m="temp" aria-pressed="false">Temperature</button>
@@ -111,83 +117,98 @@
         </div>
       </div>
       <div id="map"></div>
+      <div class="legend" id="legend"></div>
+      <div class="scrub"><span>Start</span><input type="range" id="scrub" min="0" max="100" step="0.05" value="0" aria-label="Position along the route (km)"><span id="scrubKm" class="num">0 km</span></div>
+      <div class="elev-box"><canvas id="cElev" aria-label="Elevation profile"></canvas></div>
       <div class="dirbar" id="dirBar">
         <button class="btn" type="button" data-act="reverse" aria-pressed="false">⇄ <span>Ride it the other way</span></button>
         <button class="btn" type="button" data-act="pick" aria-pressed="false" hidden><span>Change start point</span></button>
         <button class="btn" type="button" data-act="resetStart" hidden>Original start</button>
         <span class="verdict"></span>
       </div>
-      <div class="scrub"><span>Start</span><input type="range" id="scrub" min="0" max="100" step="0.05" value="0" aria-label="Position along the route (km)"><span id="scrubKm" class="num">0 km</span></div>
-      <div class="elev-box"><canvas id="cElev" aria-label="Elevation profile"></canvas></div>
-      <div class="legend" id="legend"></div>
     </div>
-    <div class="panel">
-      <span class="label">At this point of the ride</span>
+    <aside class="detail" aria-label="At this point of the ride">
+      <span class="eyebrow">At this point of the ride</span>
       <div class="readout" id="readout"></div>
       <hr>
-      <span class="label">Hazards</span>
+      <h3 class="section-title">Hazards</h3>
       <ul class="notes" id="hazards"></ul>
       <hr>
-      <span class="label">Ride notes</span>
+      <h3 class="section-title">Ride notes</h3>
       <ul class="notes" id="notes"></ul>
-    </div>
+    </aside>
   </section>
 
-  <section class="panel" id="bestPanel">
-    <div class="panel-head">
-      <div><h2>Best time to leave</h2><div class="sub" id="bestSub">Every half hour on the chosen day; shorter bars are better</div></div>
+  <section class="block" id="bestPanel">
+    <div class="block-head">
+      <div><h2 class="section-title">Best time to leave</h2><div class="sub" id="bestSub">Every half hour on the chosen day; shorter bars are better</div></div>
+      <div class="legend" id="bestLegend"></div>
     </div>
-    <div class="best">
-      <div class="picks" id="picks"></div>
-      <div>
-        <div class="best-chart"><canvas id="cBest"></canvas></div>
-        <div class="legend" id="bestLegend"></div>
+    <div class="best-chart"><canvas id="cBest" aria-label="Weather cost of every start on this day"></canvas></div>
+    <div class="day-pick" id="dayPick" aria-live="polite"></div>
+    <h3 class="section-title">Top picks</h3>
+    <ul class="picks" id="picks"></ul>
+  </section>
+
+  <section class="block">
+    <h2 class="section-title">Along the ride</h2>
+    <div class="charts">
+      <div class="chart">
+        <div class="chart-head"><h3>Temperature</h3><span class="sub">°C · air, how it feels on the bike, likely range (shaded: 8 in 10 forecast runs fall inside)</span></div>
+        <div class="chart-box"><canvas id="cTemp"></canvas></div>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><h3>Wind</h3><span class="sub">km/h · bars = headwind (+) / tailwind (−) at rider height; shaded = likely wind range</span></div>
+        <div class="chart-box"><canvas id="cWind"></canvas></div>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><h3>Rain &amp; cloud</h3><span class="sub">% · rain chance, a second opinion, cloud cover</span></div>
+        <div class="chart-box"><canvas id="cRain"></canvas></div>
+        <details class="explain"><summary>What's the “second opinion” line?</summary><p>The bold line is a second opinion: the European weather centre runs its forecast about 50 times from slightly different starting points, and this is the share of those runs that bring rain when you pass. Near 0% or 100% means the runs agree; in between, the forecast is uncertain, so pack a jacket and check again closer to the day.</p></details>
+        <div class="sub">How hard it rains when you pass (mm/h): <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 30%,transparent)"></b>drizzle &lt;0.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 55%,transparent)"></b>light &lt;2.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 80%,transparent)"></b>moderate &lt;7.6</span> <span class="key"><b class="sq" style="background:var(--cool)"></b>heavy</span></div>
+        <div class="chart-box short"><canvas id="cRainAmt"></canvas></div>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><h3>Wind direction</h3><span class="sub">where the wind comes from vs. your heading</span></div>
+        <div class="chart-box tall"><canvas id="cDir"></canvas></div>
+      </div>
+      <div class="chart wide">
+        <div class="chart-head"><h3>Predicted speed</h3><span class="sub">km/h moving · with this wind vs. in still air</span></div>
+        <div class="chart-box"><canvas id="cSpeed"></canvas></div>
+        <div class="tbreak" id="timeBreak" aria-label="Where the time goes"></div>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><h3>UV index</h3><span class="sub">sunburn risk when you pass · 3+ suncream, 6+ high, 8+ very high</span></div>
+        <div class="chart-box"><canvas id="cUV"></canvas></div>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><h3>Air quality</h3><span class="sub" id="airSub">European AQI</span></div>
+        <div class="chart-box"><canvas id="cAir"></canvas></div>
       </div>
     </div>
   </section>
 
-  <section class="charts">
-    <div class="panel">
-      <div class="panel-head"><div><h2>Temperature</h2><div class="sub">°C · air, how it feels on the bike, likely range (shaded: 8 in 10 forecast runs fall inside)</div></div></div>
-      <div class="chart-box"><canvas id="cTemp"></canvas></div>
+  <section class="block" aria-label="Wind exposure">
+    <div class="block-head">
+      <div><h2 class="section-title">Wind around you</h2><div class="sub">Time riding with the wind from each side. Top is straight into your face.</div></div>
+      <div class="seg" id="expoPart" role="group" aria-label="Part of the ride">
+        <button type="button" data-part="all" aria-pressed="true">Whole ride</button>
+        <button type="button" data-part="first" aria-pressed="false">First half</button>
+        <button type="button" data-part="second" aria-pressed="false">Second half</button>
+      </div>
     </div>
-    <div class="panel">
-      <div class="panel-head"><div><h2>Wind</h2><div class="sub">km/h · bars = headwind (+) / tailwind (−) at rider height; shaded = likely wind range</div></div></div>
-      <div class="chart-box"><canvas id="cWind"></canvas></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h2>Rain &amp; cloud</h2><div class="sub">% · rain chance, a second opinion, cloud cover</div></div></div>
-      <div class="chart-box"><canvas id="cRain"></canvas></div>
-      <details class="explain"><summary>What's the “second opinion” line?</summary><p>The bold line is a second opinion: the European weather centre runs its forecast about 50 times from slightly different starting points, and this is the share of those runs that bring rain when you pass. Near 0% or 100% means the runs agree; in between, the forecast is uncertain, so pack a jacket and check again closer to the day.</p></details>
-      <div class="sub">How hard it rains when you pass (mm/h): <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 30%,transparent)"></b>drizzle &lt;0.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 55%,transparent)"></b>light &lt;2.5</span> <span class="key"><b class="sq" style="background:color-mix(in srgb,var(--cool) 80%,transparent)"></b>moderate &lt;7.6</span> <span class="key"><b class="sq" style="background:var(--cool)"></b>heavy</span></div>
-      <div class="chart-box short"><canvas id="cRainAmt"></canvas></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h2>Predicted speed</h2><div class="sub">km/h moving · with this wind vs. in still air</div></div></div>
-      <div class="chart-box"><canvas id="cSpeed"></canvas></div>
-      <div class="tbreak" id="timeBreak" aria-label="Where the time goes"></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h2>Wind direction</h2><div class="sub">where the wind comes from vs. your heading</div></div></div>
-      <div class="chart-box tall"><canvas id="cDir"></canvas></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h2>Wind exposure</h2><div class="sub">minutes riding with wind from each side</div></div></div>
-      <div class="chart-box tall"><canvas id="cPolar"></canvas></div>
-      <p class="hint">Top is straight into your face, bottom is straight behind you.</p>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h2>UV index</h2><div class="sub">sunburn risk when you pass · 3+ suncream, 6+ high, 8+ very high</div></div></div>
-      <div class="chart-box"><canvas id="cUV"></canvas></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><h2>Air quality</h2><div class="sub" id="airSub">European AQI</div></div></div>
-      <div class="chart-box"><canvas id="cAir"></canvas></div>
+    <div class="expo">
+      <div class="rose"><svg id="rose" viewBox="-180 -150 360 300" role="img" aria-label="Time with the wind from each side"></svg></div>
+      <div class="expo-side">
+        <div class="tbar" id="expoBar" aria-hidden="true"></div>
+        <dl class="expo-stats" id="expoStats"></dl>
+        <p class="sub" id="expoNote"></p>
+      </div>
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div><h2>Checkpoints</h2><div class="sub" id="spacingLabel"></div></div></div>
+  <section class="block">
+    <div class="block-head"><h2 class="section-title">Checkpoints</h2><div class="sub" id="spacingLabel"></div></div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Km</th><th>Pass at</th><th>Sky</th><th>Temp</th><th>On bike</th><th>Wind (10 m)</th><th>Gusts</th><th>From</th><th>For you</th><th>Rain</th><th>Cloud</th><th>Humidity</th><th>UV</th><th>AQI</th><th>Elev.</th></tr></thead>
@@ -202,6 +223,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script data-goatcounter="https://alfonpe.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
-<script type="module" src="js/main.js?v=2118ccdb3a"></script>
+<script type="module" src="js/main.js?v=7a05d979e8"></script>
 </body>
 </html>

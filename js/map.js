@@ -12,7 +12,7 @@ import { $, clamp, css, esc, r0, r1, rad } from "./util.js";
 // stops are positions 0–1 along the bar; the value range is fitted to each ride (see rampRange)
 export const RAMPS = {
   temp: { stops: [[0,"#3b4cc0"],[.25,"#5fa8d3"],[.45,"#62c2a2"],[.62,"#e9cf5b"],[.8,"#f0954a"],[1,"#c8364a"]], unit: "°C", label: "Temperature" },
-  head: { stops: [[0,"#1e8c5c"],[.33,"#7fc79f"],[.5,"#b9bdb7"],[.67,"#f0a37c"],[1,"#c8364a"]], unit: "km/h at rider height", label: "Tailwind / headwind" },
+  head: { stops: [[0,"#4f5e12"],[.33,"#9aa86a"],[.5,"#c9c8c0"],[.67,"#d9946a"],[1,"#a2441a"]], unit: "km/h at rider height", label: "Tailwind / headwind" },
   pop:  { stops: [[0,"#c4d3e2"],[.3,"#7fa6d6"],[.6,"#3e6fc4"],[1,"#1b2f84"]], unit: "%", label: "Rain chance" },
   precip: { stops: [[0,"#d5e3f0"],[.2,"#8fb8e3"],[.5,"#3e7fd0"],[1,"#14307a"]], unit: "mm/h", label: "Rain amount" },
   ws:   { stops: [[0,"#d4d0e6"],[.33,"#9a8fd0"],[.67,"#6046b0"],[1,"#2e1a6e"]], unit: "km/h at 10 m", label: "Wind speed" }

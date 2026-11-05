@@ -14,7 +14,7 @@ import { rainLevel } from "./weather.js";
    No map tiles behind the route: browsers refuse to export a canvas that contains another site's images. */
 
 const W = 1080, H = 1350, PAD = 64;
-const FONT = '"Inter Tight","Inter",system-ui,sans-serif', BODY = '"Inter",system-ui,sans-serif';
+const FONT = '"IBM Plex Sans",system-ui,sans-serif', BODY = '"IBM Plex Sans",system-ui,sans-serif';
 const plain = html => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
 function wrap(g, text, maxW) {

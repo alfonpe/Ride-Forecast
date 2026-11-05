@@ -1,6 +1,6 @@
 import { compareReversed, scoreStarts } from "./best.js";
 import { cardFile, drawCard } from "./card.js";
-import { renderCharts } from "./charts.js";
+import { renderCharts, renderExposure } from "./charts.js";
 import { demoGPX } from "./demo.js";
 import { parseRouteFile, readRouteBytes, routesToGPX } from "./files.js";
 import { buildTrack, fetchElevation, locate, makeSamples, routeKey } from "./geo.js";
@@ -353,7 +353,15 @@ $("#hazards").addEventListener("click", e => {
   const km = +b.dataset.km, s = nearestSample(km); setHover(km); map.panTo([s.lat, s.lon]);
 });
 document.addEventListener("rf:start", e => useStart(e.detail)); // from the best-start chart
-$("#picks").addEventListener("click", e => { const b = e.target.closest("button[data-ms]"); if (b) useStart(+b.dataset.ms); });
+$("#picks").addEventListener("click", e => { const b = e.target.closest("[data-ms]"); if (b && !b.classList.contains("selected")) useStart(+b.dataset.ms); });
+$("#picks").addEventListener("keydown", e => { const b = e.target.closest("[data-ms]"); if (b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); b.click(); } });
+$("#dayPick").addEventListener("click", e => { const b = e.target.closest("button[data-ms]"); if (b) useStart(+b.dataset.ms); });
+$("#expoPart").addEventListener("click", e => {
+  const b = e.target.closest("button[data-part]"); if (!b) return;
+  state.expoPart = b.dataset.part;
+  $("#expoPart").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  renderExposure();
+});
 $("#stops").addEventListener("change", () => { if (state.track) run(false); });
 $("#wf").addEventListener("change", () => { if (state.track) run(false); });
 $("#hills").addEventListener("change", () => { if (state.track) run(false); });
