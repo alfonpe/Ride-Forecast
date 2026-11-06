@@ -1,5 +1,6 @@
 import { compass, locate } from "./geo.js";
 import { setHover } from "./hover.js";
+import { namedTops } from "./labels.js";
 import { catColor } from "./render.js";
 import { state } from "./state.js";
 import { fmtDay, fmtDur, fmtTime, msToWall } from "./time.js";
@@ -32,6 +33,29 @@ export const crosshair = {
   }
 };
 Chart.register(crosshair);
+
+// names of the passes over the elevation profile: a small triangle at each top and its name above it
+const passLabels = {
+  id: "passLabels",
+  afterDatasetsDraw(c, _, o) {
+    if (!o || !o.tops || !o.tops.length || !c.scales.x) return;
+    const g = c.ctx, { left, right, top } = c.chartArea, placed = [];
+    g.save(); g.font = `500 11px ${css("--body")}`; g.textBaseline = "alphabetic";
+    for (const t of [...o.tops].sort((a, b) => b.ele - a.ele)) { // highest first gets its spot
+      const x = c.scales.x.getPixelForValue(t.km), y = c.scales.y.getPixelForValue(t.ele);
+      if (x < left || x > right) continue;
+      const text = `${t.name} · ${t.ele} m`, w = g.measureText(text).width;
+      let tx = Math.min(Math.max(x - w / 2, left), right - w);
+      const ty = Math.max(top + 10, y - 9);
+      if (placed.some(([a, b]) => tx < b + 8 && a < tx + w + 8)) continue; // would overlap a higher one's name
+      placed.push([tx, tx + w]);
+      g.fillStyle = css("--ink"); g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 4, y); g.lineTo(x - 4, y); g.closePath(); g.fill();
+      g.lineWidth = 3; g.strokeStyle = css("--bg"); g.lineJoin = "round"; g.strokeText(text, tx, ty - 4); g.fillText(text, tx, ty - 4);
+    }
+    g.restore();
+  }
+};
+Chart.register(passLabels);
 
 export function chartTheme() {
   const ink = css("--ink"), muted = css("--muted"), line = css("--line");
@@ -73,6 +97,8 @@ export function renderCharts(only) {
   prof.push({ x: maxKm, y: tr.ele[tr.ele.length - 1] });
   const eo = opts({ y: yAx({ ticks: { maxTicksLimit: 3, callback: v => v + " m" } }) }, " m", false);
   eo.scales.x.ticks.maxTicksLimit = 10;
+  eo.plugins.passLabels = { tops: tr.hasEle ? namedTops(tr, state.places ? state.places.summits : []) : [] };
+  eo.layout = { padding: { top: 16 } };
   mk("#cElev", { type: "line", data: { datasets: [lineDs("Elevation", tr.hasEle ? prof : [], muted, { fill: "origin", backgroundColor: alpha(css("--elev"), .7), borderWidth: 1.25, tension: .2 })] }, options: eo });
 
   mk("#cTemp", { type: "line", data: { datasets: [

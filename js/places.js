@@ -1,5 +1,6 @@
 import { locate, routeKey } from "./geo.js";
 import { fetchJSON, store, stored } from "./net.js";
+import { climbTops } from "./labels.js";
 import { overpass, parseOverpass } from "./pois.js";
 import { simplify } from "./share.js";
 
@@ -85,7 +86,7 @@ export function placesFromTiles(tr, timeout = 12000) {
 }
 
 export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 12000, eleReady = null } = {}) {
-  const id = routeKey(tr), hit = stored("rf-places", 30), had = hit && hit.id === id ? hit.res : null;
+  const id = routeKey(tr), hit = stored("rf-places2", 30), had = hit && hit.id === id ? hit.res : null;
   if (had) { onUpdate(had); if (!had.partial) return had; } // shown at once; a partial one is completed below
   const at = [];
   // every 14 km, 12 km around: any town within 5 km of the road is within 7 + 5 km of a lookup point
@@ -96,7 +97,7 @@ export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 12000, eleR
   let summits = had ? had.summits : [], answered = 0, failed = 0, complete = false, finished = false, result = null;
   const get = url => fetchJSON(url, { timeout: 8000, what: "The place-name service", retries: 1 }).then(j => { answered++; return j; }, () => { failed++; return null; });
   const update = () => onUpdate({ places: places.slice(), summits });
-  const keep = () => { if (result && !result.partial || places.length > (had ? had.places.length : 0)) store("rf-places", { id, res: { places: places.slice(), summits, partial: !result || result.partial } }); };
+  const keep = () => { if (result && !result.partial || places.length > (had ? had.places.length : 0)) store("rf-places2", { id, res: { places: places.slice(), summits, partial: !result || result.partial } }); };
   const towns = pool(at, 3, p => get(`${PHOTON}?lat=${p.lat.toFixed(4)}&lon=${p.lon.toFixed(4)}&radius=12&limit=20${KINDS}`).then(r => {
     for (const q of photonFeatures(r, f => f.osm_key === "place")) {
       const k = `${q.name}|${q.lat.toFixed(2)}|${q.lon.toFixed(2)}`;
@@ -104,18 +105,29 @@ export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 12000, eleR
     }
     if (r) update();
   }));
-  // the summit's pass name is a bonus: it updates the card whenever it lands and never holds up "done"
+  // pass names are a bonus: one small lookup around every top of a climb (passes, cols and peaks within 3 km, enough
+  // for a road pass a little off the summit); they update the card whenever they land and never hold up "done".
+  // If none of them answers, the cols and peaks come from the map's own data instead.
   (async () => {
     await eleReady;
-    if (!tr.hasEle) return;
-    let hi = 0;
-    for (let i = 1; i < tr.ele.length; i++) if (tr.ele[i] > tr.ele[hi]) hi = i;
-    const p = tr.pts[hi];
-    const r = await get(`${PHOTON}?lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&radius=8&limit=25&osm_tag=natural:peak&osm_tag=natural:saddle&osm_tag=mountain_pass`);
-    if (!r) return;
-    summits = photonFeatures(r, q => q.osm_key === "natural" || q.osm_key === "mountain_pass")
-      .map(q => ({ ...q, kind: q.key === "mountain_pass" || q.place === "saddle" ? "pass" : "peak" }));
-    update();
+    const tops = climbTops(tr);
+    if (!tops.length) return;
+    const got = new Map((summits || []).map(q => [`${q.name}|${q.lat.toFixed(3)}|${q.lon.toFixed(3)}`, q]));
+    let any = false;
+    await pool(tops, 2, async i => {
+      const p = tr.pts[i];
+      const r = await get(`${PHOTON}?lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&radius=3&limit=25&osm_tag=natural:peak&osm_tag=natural:saddle&osm_tag=mountain_pass`);
+      if (!r) return;
+      any = true;
+      for (const q of photonFeatures(r, f => f.osm_key === "natural" || f.osm_key === "mountain_pass"))
+        got.set(`${q.name}|${q.lat.toFixed(3)}|${q.lon.toFixed(3)}`, { ...q, kind: q.key === "mountain_pass" || q.place === "saddle" ? "pass" : "peak" });
+      summits = [...got.values()];
+      update();
+    });
+    if (!any && !summits.length) {
+      const t = await placesFromTiles(tr);
+      if (t && t.summits.length) { summits = t.summits; update(); }
+    }
     if (finished) keep();
   })();
   await Promise.race([towns.then(() => { complete = true; }), new Promise(r => setTimeout(r, capMs))]);

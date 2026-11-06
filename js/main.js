@@ -215,10 +215,12 @@ async function useRoute(route, label, knownTz, { keepName = false } = {}) {
   const dem = tr.hasEle ? null : fetchElevation(tr).catch(() => null);
   state.poisRaw = state.pois = undefined;
   state.places = undefined; state.placesDone = false; // loading
-  fetchPlaces(tr, partial => { if (id === loadSeq) { state.places = partial; redrawCard(); } }, { eleReady: dem }).catch(() => null).then(res => {
+  // town and pass names: the share card, the pass labels on the elevation profile and the ride notes follow them
+  const placesIn = () => { redrawCard(); if (state.samples && state.samplesFor === state.track) { renderNotes(); renderCharts(["cElev"]); } };
+  fetchPlaces(tr, partial => { if (id === loadSeq) { state.places = partial; placesIn(); } }, { eleReady: dem }).catch(() => null).then(res => {
     if (id !== loadSeq) return;
     state.places = res; state.placesDone = true;
-    redrawCard();
+    placesIn();
   });
   const useWater = res => {
     state.poisRaw = res ? res.pois : null; state.pois = placePOIs(state.poisRaw, state.track);

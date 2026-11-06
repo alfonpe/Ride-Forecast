@@ -204,6 +204,15 @@ export function drawCard() {
           .map(([x, yy]) => [x, yy, tw, th]).find(free);
         if (spot) break;
       }
+      // a named pass matters more than a clean line: if nothing else fits, its name may cross the route (it has a halo)
+      if (!spot && l.type === "high") {
+        const loose = ([x, yy, w, h]) => x >= pb.x + 8 && x + w <= pb.x + pb.w - 8 && yy >= pb.y + 8 && yy + h <= pb.y + pb.h - 8 && !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h);
+        for (const d of [14, 30, 52, 80]) {
+          spot = [[px - tw / 2, py - d - th], [px - tw / 2, py + d], [px + d, py - th / 2], [px - d - tw, py - th / 2],
+            [px - 12, py + d], [px - tw + 12, py + d], [px - 12, py - d - th], [px - tw + 12, py - d - th]].map(([x, yy]) => [x, yy, tw, th]).find(loose);
+          if (spot) break;
+        }
+      }
       if (!spot) { g.letterSpacing = "0px"; continue; }
       taken.push(spot);
       g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 3;

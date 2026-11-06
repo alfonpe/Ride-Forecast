@@ -42,6 +42,31 @@ export function summitName(tr, hi, summits = []) {
   return saddle ? saddle.name : "";
 }
 
+// Every top along the route worth a name: a point you climb at least `minClimb` metres into from one side, and that
+// stands apart from any higher ground (the road drops at least `sep` m between them), so a bump on the way up to a
+// bigger summit doesn't count. A top at the start or finish counts too. Indices into tr.pts, in riding order.
+export function climbTops(tr, minClimb = 200, sep = 60) {
+  if (!tr.hasEle) return [];
+  const idx = [];
+  for (let i = 0, next = 0; i < tr.pts.length; i++) if (tr.cum[i] >= next) { idx.push(i); next = tr.cum[i] + 100; } // every ~100 m
+  if (idx[idx.length - 1] !== tr.pts.length - 1) idx.push(tr.pts.length - 1);
+  const e = idx.map(i => tr.ele[i]), n = e.length, tops = [];
+  for (let j = 0; j < n; j++) {
+    if ((j > 0 && e[j - 1] > e[j]) || (j < n - 1 && e[j + 1] > e[j])) continue; // not a local top
+    let lowL = e[j], lowR = e[j], k = j - 1, m = j + 1;
+    for (; k >= 0 && e[k] < e[j]; k--) lowL = Math.min(lowL, e[k]); // stops at ground as high (the first of equal tops wins)
+    for (; m < n && e[m] <= e[j]; m++) lowR = Math.min(lowR, e[m]);
+    const dropL = e[j] - lowL, dropR = e[j] - lowR;
+    if (Math.max(dropL, dropR) < minClimb) continue;
+    if ((k >= 0 && dropL < sep) || (m < n && dropR < sep)) continue;
+    // the real highest track point between the neighbouring samples
+    let best = idx[j];
+    for (let i = idx[Math.max(0, j - 1)]; i <= idx[Math.min(n - 1, j + 1)]; i++) if (tr.ele[i] > tr.ele[best]) best = i;
+    tops.push(best);
+  }
+  return tops;
+}
+
 export function pickLabels(tr, places = [], summits = [], { every = 25, within = 5, climb = 200 } = {}) {
   const out = [], clash = q => out.some(o => o.text === q.name || hav(o, q) < 4000);
   const near = places.map(q => ({ ...q, ...onTrack(tr, q) })).filter(q => q.off <= within * 1000);
@@ -58,14 +83,13 @@ export function pickLabels(tr, places = [], summits = [], { every = 25, within =
     const q = near.filter(c => hav(c, far) <= within * 1000).sort((a, b) => hav(a, far) - hav(b, far))[0];
     if (q && !out.some(o => o.text === q.name)) out.push({ type: "place", far: true, place: q.place, pop: q.pop, lat: q.lat, lon: q.lon, text: q.name, km: q.km });
   }
-  // the high point, only when it's a real climb above the start, named after the pass it belongs to
-  if (tr.hasEle) {
-    let hi = 0;
-    for (let i = 1; i < tr.ele.length; i++) if (tr.ele[i] > tr.ele[hi]) hi = i;
-    if (tr.ele[hi] - tr.ele[0] >= climb) {
-      const p = tr.pts[hi], hiKm = tr.cum[hi] / 1000, name = summitName(tr, hi, summits);
-      out.push({ type: "high", lat: p.lat, lon: p.lon, text: `${name ? name + " · " : ""}${Math.round(tr.ele[hi])} m`, km: hiKm });
-    }
+  // every top of a real climb that has a name (a pass, col or peak there); unnamed tops aren't labelled
+  for (const i of climbTops(tr, climb)) {
+    const name = summitName(tr, i, summits);
+    if (name) out.push({ type: "high", lat: tr.pts[i].lat, lon: tr.pts[i].lon, text: `${name} · ${Math.round(tr.ele[i])} m`, name, ele: Math.round(tr.ele[i]), km: tr.cum[i] / 1000 });
   }
   return out.sort((a, b) => a.km - b.km);
 }
+
+// the named tops on this track, in riding order: { name, ele, km, lat, lon }
+export const namedTops = (tr, summits = []) => pickLabels(tr, [], summits).filter(l => l.type === "high");
