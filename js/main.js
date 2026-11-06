@@ -1,5 +1,5 @@
 import { compareReversed, scoreStarts } from "./best.js";
-import { cardFile, drawCard } from "./card.js";
+import { cardFile, cardMapReady, drawCard, prepareCardMap } from "./card.js";
 import { renderCharts, renderExposure } from "./charts.js";
 import { demoGPX } from "./demo.js";
 import { parseRouteFile, readRouteBytes, routesToGPX } from "./files.js";
@@ -427,6 +427,8 @@ function cardHint() {
   return state.places.partial ? `${base} Some town names couldn't be loaded right now.` : base;
 }
 function drawPreview() {
+  // the quiet map behind the route is drawn in the background; the preview updates when it's ready
+  if (!cardMapReady()) prepareCardMap().then(ok => { if (ok && card && !$("#imgView").hidden) redrawCard(); });
   const canvas = drawCard(), slug = (state.name || "ride").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "ride";
   const dataUrl = canvas.toDataURL("image/png"), file = cardFile(dataUrl, `ride-plan-${slug}.png`);
   if (card) URL.revokeObjectURL(card.url);

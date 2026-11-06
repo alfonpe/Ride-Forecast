@@ -17,6 +17,69 @@ const W = 1080, H = 1350, PAD = 64;
 const FONT = '"IBM Plex Sans",system-ui,sans-serif', BODY = '"IBM Plex Sans",system-ui,sans-serif', MONO = '"IBM Plex Mono",ui-monospace,monospace';
 const plain = html => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
+/* ---------- the map behind the route, in Route Library's quiet style ----------
+   Land in the panel colour, the sea and the coastline, nothing else: the card adds its own towns and passes.
+   Drawn once per route/theme with MapLibre on a hidden canvas (OpenFreeMap vector data, which doesn't taint the
+   canvas), kept as a picture with its bounds, so drawCard() can stay synchronous. Until it's ready, or without
+   WebGL, the card draws on the plain panel as before. */
+let cardMap = null, pending = null;
+const mercY = lat => Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2));
+const darkTheme = () => (css("--bg").match(/\w\w/g) || ["ff"]).reduce((a, h) => a + parseInt(h, 16), 0) < 384;
+// what the card shows: the labels, the out-and-back split, and the size and inner margins of each map panel
+function layout() {
+  const tr = state.track, S = state.samples;
+  const labels = pickLabels(tr, state.places ? state.places.places : [], state.places ? state.places.summits : []);
+  const ob = outAndBack(tr), kTurn = ob ? Math.max(1, Math.min(S.length - 2, Math.round(tr.cum[ob.turn] / tr.total * (S.length - 1)))) : null;
+  const bw = W - 2 * PAD, bh = 480;
+  const pane = ob ? { w: bw / 2, h: bh, inner: { l: 22, r: 22, t: 62, b: 62 } } : { w: bw, h: bh, inner: { l: 36, r: 112, t: 36, b: 64 } };
+  const pts = [...tr.pts, ...labels];
+  const b = { w: Math.min(...pts.map(p => p.lon)), e: Math.max(...pts.map(p => p.lon)), s: Math.min(...pts.map(p => p.lat)), n: Math.max(...pts.map(p => p.lat)) };
+  const key = [tr.total, tr.pts.length, tr.pts[0].lat, tr.pts[0].lon, b.w, b.e, b.s, b.n, pane.w, darkTheme()].join("|");
+  return { labels, ob, kTurn, pane, b, key };
+}
+export const cardMapReady = () => !!(state.track && cardMap && cardMap.key === layout().key);
+export function prepareCardMap() {
+  if (!state.track || !window.maplibregl || maplibregl.supported?.() === false) return Promise.resolve(false);
+  const { pane, b, key } = layout();
+  if (cardMap && cardMap.key === key) return Promise.resolve(true);
+  if (pending && pending.key === key) return pending.done;
+  const dark = darkTheme(), land = css("--surface-2");
+  const el = document.createElement("div");
+  el.style.cssText = `position:fixed;left:-20000px;top:0;width:${pane.w}px;height:${pane.h}px;pointer-events:none`;
+  document.body.appendChild(el);
+  const done = new Promise(resolve => {
+    let m, finished = false;
+    const finish = ok => {
+      if (finished) return; finished = true;
+      try {
+        if (ok) {
+          const img = document.createElement("canvas"); img.width = pane.w; img.height = pane.h;
+          img.getContext("2d").drawImage(m.getCanvas(), 0, 0, pane.w, pane.h);
+          const bb = m.getBounds();
+          cardMap = { key, img, w: bb.getWest(), e: bb.getEast(), n: bb.getNorth(), s: bb.getSouth() };
+        }
+      } catch (e) { ok = false; }
+      try { m && m.remove(); } catch (e) { /* gone */ }
+      el.remove(); if (pending && pending.key === key) pending = null;
+      resolve(ok);
+    };
+    try {
+      m = new maplibregl.Map({ container: el, interactive: false, attributionControl: false, fadeDuration: 0, pixelRatio: 1, preserveDrawingBuffer: true,
+        bounds: [[b.w, b.s], [b.e, b.n]], fitBoundsOptions: { padding: { top: pane.inner.t, bottom: pane.inner.b, left: pane.inner.l, right: pane.inner.r }, maxZoom: 14 },
+        style: { version: 8, sources: { omt: { type: "vector", url: "https://tiles.openfreemap.org/planet" } }, layers: [
+          { id: "land", type: "background", paint: { "background-color": land } },
+          { id: "water", type: "fill", source: "omt", "source-layer": "water", paint: { "fill-color": dark ? "#20262a" : "#e3e9ec" } },
+          { id: "coast", type: "line", source: "omt", "source-layer": "water", paint: { "line-color": dark ? "#36414a" : "#c3ced3", "line-width": 1.2 } }
+        ] } });
+      m.once("idle", () => finish(true));
+      m.on("error", () => {});
+      setTimeout(() => finish(false), 10000);
+    } catch (e) { finish(false); }
+  });
+  pending = { key, done };
+  return done;
+}
+
 function wrap(g, text, maxW) {
   const words = text.split(/\s+/), lines = [];
   let line = "";
@@ -48,8 +111,7 @@ export function drawCard() {
   // route map: colour = head/cross/tailwind, thickness = how strong the wind is there. An out-and-back ride gets two
   // maps side by side (out | back) at the same scale and position: drawn as one, the way back would cover the way out.
   const box = { x: PAD, y: y + 30, w: W - 2 * PAD, h: 480 };
-  const labels = pickLabels(tr, state.places ? state.places.places : [], state.places ? state.places.summits : []);
-  const ob = outAndBack(tr), kTurn = ob ? Math.max(1, Math.min(S.length - 2, Math.round(tr.cum[ob.turn] / tr.total * (S.length - 1)))) : null;
+  const L0 = layout(), labels = L0.labels, ob = L0.ob, kTurn = L0.kTurn, base = cardMap && cardMap.key === L0.key ? cardMap : null;
   const bg2 = css("--surface-2");
   g.fillStyle = bg2; g.beginPath(); g.roundRect(box.x, box.y, box.w, box.h, 16); g.fill();
   g.lineCap = "round"; g.lineJoin = "round";
@@ -78,16 +140,20 @@ export function drawCard() {
   const panel = (pb, { k0 = 0, k1 = last, title = "", inner, windBadge = false }) => {
     const sc = Math.min((pb.w - inner.l - inner.r) / ((x1 - x0) || 1e-6), (pb.h - inner.t - inner.b) / ((y1 - y0) || 1e-6));
     const ox = pb.x + inner.l + (pb.w - inner.l - inner.r - (x1 - x0) * sc) / 2, oy = pb.y + inner.t + (pb.h - inner.t - inner.b + (y1 - y0) * sc) / 2;
-    const XY = (lat, lon) => [ox + (lon * kx - x0) * sc, oy - (lat - y0) * sc];
+    // with the map picture behind, place everything in its (Web Mercator) frame so the route sits on the coast
+    const XY = base
+      ? (lat, lon) => [pb.x + (lon - base.w) / (base.e - base.w) * pb.w, pb.y + (mercY(base.n) - mercY(lat)) / (mercY(base.n) - mercY(base.s)) * pb.h]
+      : (lat, lon) => [ox + (lon * kx - x0) * sc, oy - (lat - y0) * sc];
     const P = i => XY(tr.pts[i].lat, tr.pts[i].lon);
     const split = k0 > 0 || k1 < last;
     g.save(); g.beginPath(); g.rect(pb.x, pb.y, pb.w, pb.h); g.clip();
+    if (base) { g.save(); g.beginPath(); g.roundRect(box.x, box.y, box.w, box.h, 16); g.clip(); g.drawImage(base.img, pb.x, pb.y, pb.w, pb.h); g.restore(); }
     if (split) { // the other leg, faint, for context
       g.strokeStyle = muted; g.globalAlpha = .35; g.lineWidth = 3; g.beginPath();
       tr.pts.forEach((_, i) => { const [a, b] = P(i); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke(); g.globalAlpha = 1;
     }
     const seg = (k, fn) => { g.beginPath(); for (let i = S[k].i; i <= Math.min(S[k + 1].i + 1, nPts - 1); i++) { const [a, b] = P(i); i === S[k].i ? g.moveTo(a, b) : g.lineTo(a, b); } fn(); };
-    for (let k = k0; k < k1; k++) seg(k, () => { g.strokeStyle = bg2; g.lineWidth = width(S[k]) + 8; g.stroke(); });
+    for (let k = k0; k < k1; k++) seg(k, () => { g.strokeStyle = css("--bg"); g.lineWidth = width(S[k]) + 7; g.stroke(); });
     for (let k = k0; k < k1; k++) seg(k, () => { g.strokeStyle = catColor(S[k].cat); g.lineWidth = width(S[k]); g.stroke(); });
 
     let wb = null;
@@ -122,11 +188,15 @@ export function drawCard() {
     // every marker's spot is reserved before any text is placed, so no text covers another place's dot
     for (const l of labels) { const [px, py] = XY(l.lat, l.lon); taken.push([px - 9, py - 10, 18, 19]); }
     for (const { z } of here) { const [px, py] = hazAt(z); taken.push([px - 16, py - 16, 32, 32]); }
-    g.font = `600 23px ${BODY}`;
+    const isCity = l => l.type === "place" && (l.place === "city" || l.pop >= 100000);
+    const fontFor = l => l.type === "high" ? `600 23px ${BODY}` : isCity(l) ? `600 21px ${BODY}` : `400 23px ${BODY}`;
+    const textFor = l => isCity(l) ? l.text.toUpperCase() : l.text;
+    const spacing = l => isCity(l) ? "2.5px" : "0px";
     // most important first, so they get the best spots: the summit, then the turnaround, then towns
     const rank = l => l.type === "high" ? 0 : l.far ? 1 : 2;
     for (const l of [...labels].sort((a, b) => rank(a) - rank(b))) {
-      const [px, py] = XY(l.lat, l.lon), tw = g.measureText(l.text).width, th = 26;
+      g.font = fontFor(l); g.letterSpacing = spacing(l);
+      const [px, py] = XY(l.lat, l.lon), tw = g.measureText(textFor(l)).width, th = 26;
       let spot = null;
       for (const d of [12, 30, 52, 80, 115]) {
         spot = [[px + d, py - th / 2], [px - d - tw, py - th / 2], [px - tw / 2, py - d - th], [px - tw / 2, py + d],
@@ -134,17 +204,18 @@ export function drawCard() {
           .map(([x, yy]) => [x, yy, tw, th]).find(free);
         if (spot) break;
       }
-      if (!spot) continue;
+      if (!spot) { g.letterSpacing = "0px"; continue; }
       taken.push(spot);
       g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 3;
       g.beginPath();
-      if (l.type === "high") { g.moveTo(px, py - 9); g.lineTo(px + 9, py + 7); g.lineTo(px - 9, py + 7); g.closePath(); } else g.arc(px, py, 6, 0, 7);
+      if (l.type === "high") { g.moveTo(px, py - 9); g.lineTo(px + 9, py + 7); g.lineTo(px - 9, py + 7); g.closePath(); } else g.arc(px, py, isCity(l) ? 6 : 5, 0, 7);
       g.fill(); g.stroke();
       // a hairline from the dot when the label had to move away from it
       const [sx, sy] = [Math.max(spot[0], Math.min(px, spot[0] + tw)), Math.max(spot[1], Math.min(py, spot[1] + th))];
       if (Math.hypot(sx - px, sy - py) > 22) { g.strokeStyle = muted; g.lineWidth = 1.5; g.beginPath(); g.moveTo(px, py); g.lineTo(sx, sy); g.stroke(); }
       g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 6; g.lineJoin = "round";
-      g.font = `600 23px ${BODY}`; g.strokeText(l.text, spot[0], spot[1] + 20); g.fillText(l.text, spot[0], spot[1] + 20);
+      g.fillStyle = l.type === "high" || isCity(l) ? ink : muted;
+      g.font = fontFor(l); g.letterSpacing = spacing(l); g.strokeText(textFor(l), spot[0], spot[1] + 20); g.fillText(textFor(l), spot[0], spot[1] + 20); g.letterSpacing = "0px";
     }
     here.forEach(({ z, n }) => { const [px, py] = hazAt(z); badge(px, py, n, css(z.sev === "bad" ? "--head" : "--cross")); });
     const dot = (i, col, label) => {
