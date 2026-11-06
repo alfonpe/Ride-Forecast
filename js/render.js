@@ -76,6 +76,15 @@ export function renderHazards() {
   $("#hazards").innerHTML = Z.length
     ? Z.map(z => `<li class="${z.sev}"><button type="button" class="hz" data-km="${state.samples[z.k0].km}"><b>${HAZ[z.type]}</b> ${hazWhere(z)}<span class="sub"> · ${z.detail}</span></button></li>`).join("")
     : `<li class="good">No weather hazards flagged along the route.</li>`;
+  fitMore("hazards");
+}
+// phones show the first few items of a list; this button reveals the rest
+export const MORE_AT = 3;
+export function fitMore(id) {
+  const ul = $("#" + id), b = document.querySelector(`.more[data-for="${id}"]`), n = ul.children.length, open = ul.classList.contains("expanded");
+  b.hidden = n <= MORE_AT;
+  b.textContent = open ? "Show fewer" : `Show all ${n}`;
+  b.setAttribute("aria-expanded", open);
 }
 
 export function renderReadout() {
@@ -95,6 +104,9 @@ export function renderReadout() {
       <div class="full"><dt>Sky</dt><dd>${r0(s.cloud)}% cloud · ${r0(s.rh)}% humidity</dd></div>
       <div class="full"><dt>Sun &amp; air</dt><dd>UV ${r1(s.uv)}${a ? ` · AQI ${r0(a.aqi)} <span class="sub">${aqiLevel(a.aqi).toLowerCase()}</span>` : ""}${pol ? ` · ${pol.name} pollen ${pol.v >= pol.hi ? "high" : "moderate"}` : ""}</dd></div>
     </dl>`;
+  // the same point in one line, for the bar pinned under the map on phones
+  $("#miniReadout").innerHTML = `<span class="mr-when">km ${r1(km)} · ${fmtTime(state.startMs + p.t * 1000)}</span>
+    <span class="mr-wx">${icon(ic, 16)}${r0(s.temp)}° <span class="mr-dim">bike ${r0(s.bike)}°</span></span>${windLabel(s)}<span class="mr-rain">${r0(s.pop)}% rain</span>`;
 }
 
 export function renderNotes() {
@@ -178,6 +190,7 @@ export function renderNotes() {
   if (tr.eleSrc === "dem") notes.push(["info", "Your file had no elevation, so climbs come from a 90 m terrain model."]);
   state.notes = notes; // the share card reuses them
   $("#notes").innerHTML = notes.map(([c, t]) => `<li class="${c}">${t}</li>`).join("");
+  fitMore("notes");
 }
 
 export function renderTable() {

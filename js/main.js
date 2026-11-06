@@ -8,7 +8,7 @@ import { detectHazards } from "./hazards.js";
 import { nearestSample, setHover } from "./hover.js";
 import { drawMap, initMap, map } from "./map.js";
 import { parseStops, riderFeels, simulate, startForArrival } from "./pacing.js";
-import { renderAll, renderDirection, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ, updateTimeHint } from "./render.js";
+import { fitMore, renderAll, renderDirection, renderNotes, renderReadout, renderSummary, renderTable, setStatus, showTZ, updateTimeHint } from "./render.js";
 import { isLoop, orientTrack, remapKm } from "./orient.js";
 import { store, stored } from "./net.js";
 import { fetchPlaces } from "./places.js";
@@ -86,10 +86,12 @@ async function run(fit) {
     try { const alt = altTrack(); state.dirCompare = compareReversed(tr, S, alt, makeSamples(alt), locs, startMs, o); } catch (e) { /* comparison is optional */ }
     state.hoverKm = null;
     renderAll(fit);
+    document.dispatchEvent(new Event("rf:rendered"));
     redrawCard();
     setStatus(arrive ? `Leave at ${fmtTime(startMs)} (${fmtDay(startMs)}) to be home by ${fmtTime(endMs)}. Forecast for ${S.length} checkpoints.`
       : `Forecast for ${S.length} checkpoints, ${fmtDay(startMs)} ${fmtTime(startMs)} → ${fmtTime(endMs)}.`);
     updateTimeHint();
+    updatePlanLine();
     saveSettings();
     state.shareUrl = null;
     shareURL().then(u => { if (id === runSeq) state.shareUrl = u; }).catch(() => {}); // ready before the tap: phones only allow sharing straight from a gesture
@@ -103,10 +105,32 @@ async function run(fit) {
       state.air = air || null;
       renderSummary(); renderNotes(); renderCharts(["cAir"]); renderTable(); renderReadout();
     });
+    return true;
   } catch (e) {
     if (id === runSeq) setStatus(e.message || "Couldn't reach the weather service. Check your connection and try again.", true);
   } finally { if (id === runSeq) { btn.disabled = false; btn.textContent = "Get forecast"; } }
 }
+
+/* ---------- phones: the plan folds into one line once there's a forecast to look at ---------- */
+const phone = () => matchMedia("(max-width:760px)").matches;
+const WIND_WORD = { "1": "unscaled wind", "0.7": "open terrain", "0.6": "mixed terrain", "0.45": "sheltered" };
+function updatePlanLine() {
+  const { stops } = parseStops($("#stops").value, Infinity), arrive = state.timeMode === "arrive";
+  const ms = state.samples ? (arrive ? state.endMs : state.startMs) : wallToMs($("#start").value);
+  $("#planLine").textContent = [
+    isFinite(ms) ? `${arrive ? "Home by " : ""}${fmtDay(ms)} ${fmtTime(ms)}` : null,
+    `${$("#speed").value} km/h`,
+    stops.length ? `${stops.length} stop${stops.length > 1 ? "s" : ""}` : "no stops",
+    WIND_WORD[$("#wf").value] || "mixed terrain",
+    $("#hills").checked ? null : "flat pacing"
+  ].filter(Boolean).join(" · ");
+}
+function foldPlan(on) {
+  document.body.classList.toggle("plan-folded", on);
+  $("#editPlan").setAttribute("aria-expanded", String(!on));
+  if (on) updatePlanLine();
+}
+$("#editPlan").addEventListener("click", () => { foldPlan(false); $("#speed").focus({ preventScroll: true }); $("#form").scrollIntoView({ block: "nearest" }); });
 
 /* ---------- which way round ---------- */
 function altTrack() {
@@ -182,6 +206,7 @@ async function openShared() {
     $("#metric").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.m === plan.metric));
   }
   setTimeMode("start");
+  foldPlan(true); // they came to see the forecast; "Edit" opens the settings
   state.routes = [plan.route];
   $("#trackField").hidden = true;
   showSharedBanner(plan);
@@ -196,7 +221,7 @@ function showSharedBanner(plan) {
   const past = isFinite(ms) && ms < Date.now() - HOUR;
   box.innerHTML = `<div class="panel-head"><div><h2>Shared ride plan: ${esc(plan.route.name)}</h2>
     <div class="sub">${[when && `Start ${esc(when)}`, `${esc($("#speed").value)} km/h`, stops.length ? `stops at ${stops.map(x => `km ${r1(x.km)} (${x.min} min)`).join(", ")}` : "no stops", $("#wf").selectedOptions[0].textContent.replace(/ \(.*\)/, "").toLowerCase() + " wind"].filter(Boolean).join(" · ")}</div>
-    ${past ? `<div class="sub" style="color:var(--cross)">That start time has passed. Pick a new one above to see the forecast for your ride.</div>` : ""}</div>
+    ${past ? `<div class="sub" style="color:var(--cross)">That start time has passed. Pick a new one ${phone() ? "under Edit" : "above"} to see the forecast for your ride.</div>` : ""}</div>
     <button class="btn" type="button" data-close>Close</button></div>`;
   box.hidden = false;
 }
@@ -303,7 +328,10 @@ try {
   const th = localStorage.getItem("rf-theme"); if (THEMES.includes(th) && th !== "auto") document.documentElement.dataset.theme = th;
 } catch (e) {}
 
-$("#form").addEventListener("submit", e => { e.preventDefault(); run(false); });
+$("#form").addEventListener("submit", e => {
+  e.preventDefault();
+  run(false).then(ok => { if (ok && phone()) { foldPlan(true); $("#planBar").scrollIntoView({ block: "nearest" }); } });
+});
 $("#file").addEventListener("change", e => {
   const f = e.target.files[0]; if (!f) return;
   openFile(f);
@@ -350,6 +378,37 @@ $("#timeMode").addEventListener("click", e => {
   if (state.track) run(false);
 });
 $("#scrub").addEventListener("input", e => { if (state.samples) setHover(parseFloat(e.target.value)); });
+// phones: one Share button opening a small menu (the link and the image keep their own dialogs)
+{
+  const btn = $("#shareMenuBtn"), menu = $("#shareMenu");
+  const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+  btn.addEventListener("click", e => { e.stopPropagation(); menu.hidden = !menu.hidden; btn.setAttribute("aria-expanded", String(!menu.hidden)); if (!menu.hidden) menu.querySelector("button").focus(); });
+  menu.addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (!b) return; close(); $("#" + b.dataset.go).click(); });
+  document.addEventListener("click", e => { if (!menu.hidden && !e.target.closest(".share-wrap")) close(); });
+  addEventListener("keydown", e => { if (e.key === "Escape" && !menu.hidden) { close(); btn.focus(); } });
+}
+$("#colsToggle").addEventListener("click", e => {
+  const on = $(".table-wrap").classList.toggle("all-cols");
+  e.currentTarget.setAttribute("aria-pressed", String(on)); e.currentTarget.textContent = on ? "Fewer columns" : "Show all columns";
+});
+if (phone()) $("#about").open = false; // the data credits stay one tap away on phones
+document.querySelectorAll(".more").forEach(b => b.addEventListener("click", () => {
+  $("#" + b.dataset.for).classList.toggle("expanded"); fitMore(b.dataset.for);
+}));
+// phones: a one-line readout pinned to the top once you've scrolled to the map, until the full panel comes into view
+{
+  const bar = $("#miniReadout"), block = $("#map").closest(".block");
+  let queued = 0;
+  const show = () => {
+    queued = 0;
+    const b = block.getBoundingClientRect(), r = $("#readout").getBoundingClientRect();
+    bar.hidden = !(phone() && state.samples && b.top < 60 && b.bottom > 140 && r.top > innerHeight - 140);
+  };
+  const soon = () => { if (!queued) queued = requestAnimationFrame(show); };
+  addEventListener("scroll", soon, { passive: true }); addEventListener("resize", soon);
+  document.addEventListener("rf:rendered", soon);
+  bar.addEventListener("click", () => $("#readout").scrollIntoView({ behavior: "smooth", block: "start" }));
+}
 $("#hazards").addEventListener("click", e => {
   const b = e.target.closest(".hz"); if (!b) return;
   const km = +b.dataset.km, s = nearestSample(km); setHover(km); map.panTo([s.lat, s.lon]);

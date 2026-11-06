@@ -212,7 +212,7 @@ export function renderBest() {
   const better = top[0] && !same(top[0]) && mine.score - top[0].score >= 5;
   $("#dayPick").innerHTML = `<span class="t">${fmtTime(mine.ms)}</span><span>home ${fmtTime(mine.end)}${flags.length ? `, <span class="late">${flags.join(", ")}</span>` : ""}</span><span class="cost">${pct(mi.cost)}</span>${dotsHtml(mi.stars)}<span class="parts">${parts.join(" · ") || "as good as a still, dry day"}</span>` +
     (better ? `<button class="btn" type="button" data-ms="${top[0].ms}">Leave at ${fmtTime(top[0].ms)} instead: ${r0(mine.score - top[0].score)} effective min better</button>` : "");
-  $("#bestSub").textContent = `${fmtDay(cur)} · every half hour, scored like Route Library's Weather view: how much worse than the same ride in still, dry air. Shorter bars are better.`;
+  $("#bestSub").innerHTML = `${fmtDay(cur)} · <span class="long">every half hour, scored like Route Library's Weather view: how much worse than the same ride in still, dry air. </span>Shorter bars are better.`;
 
   const { ink, line, tooltip } = chartTheme();
   const datasets = PARTS.map(([k, label, tok]) => ({
