@@ -42,6 +42,48 @@ export function overpassPlacesQuery(pts) {
     `node(around:2000,${line})[mountain_pass=yes][name];node(around:600,${line})[natural~"^(peak|saddle)$"][name];);out tags qt;`;
 }
 
+/* ---------- the same names from OpenFreeMap's map data ----------
+   The vector tiles behind the share image carry towns, villages, peaks and cols. Read them with a hidden MapLibre
+   map at zoom 11 (where villages are included) over the route: no rate limit, nothing for a privacy blocker to
+   stop, so it's the fallback when Photon gives nothing. No population and no road passes, but the same places the
+   map shows. Resolves to { places, summits } or null (no MapLibre / WebGL, or no answer within `timeout`). */
+export function placesFromTiles(tr, timeout = 12000) {
+  const gl = typeof window !== "undefined" && window.maplibregl;
+  if (!gl || (gl.supported && !gl.supported())) return Promise.resolve(null);
+  const lats = tr.pts.map(p => p.lat), lons = tr.pts.map(p => p.lon), m = 0.06;
+  const w = Math.min(...lons) - m, e = Math.max(...lons) + m, s = Math.min(...lats) - m, n = Math.max(...lats) + m;
+  const merc = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) * 180 / Math.PI;
+  let z = 11, px = d => d / 360 * 512 * 2 ** z;
+  while (z > 8 && Math.max(px(e - w), px(merc(n) - merc(s))) > 4096) { z--; px = d => d / 360 * 512 * 2 ** z; }
+  const el = document.createElement("div");
+  el.style.cssText = `position:fixed;left:-20000px;top:0;width:${Math.ceil(px(e - w))}px;height:${Math.ceil(px(merc(n) - merc(s)))}px;pointer-events:none`;
+  document.body.appendChild(el);
+  return new Promise(resolve => {
+    let map, done = false;
+    const finish = res => { if (done) return; done = true; try { map && map.remove(); } catch (er) { /* gone */ } el.remove(); resolve(res); };
+    try {
+      map = new gl.Map({ container: el, interactive: false, attributionControl: false, fadeDuration: 0, pixelRatio: 1, center: [(w + e) / 2, (s + n) / 2], zoom: z,
+        style: { version: 8, sources: { omt: { type: "vector", url: "https://tiles.openfreemap.org/planet" } }, layers: [
+          { id: "place", type: "circle", source: "omt", "source-layer": "place", paint: { "circle-opacity": 0 } },
+          { id: "peak", type: "circle", source: "omt", "source-layer": "mountain_peak", paint: { "circle-opacity": 0 } }] } });
+      map.on("error", () => {});
+      map.once("idle", () => {
+        try {
+          const seen = new Set(), pick = (layer, ok) => map.querySourceFeatures("omt", { sourceLayer: layer }).filter(f => f.properties.name && ok(f.properties.class)).map(f => {
+            const [lon, lat] = f.geometry.coordinates, name = short(String(f.properties.name)), k = `${name}|${lat.toFixed(2)}|${lon.toFixed(2)}`;
+            if (seen.has(k)) return null; seen.add(k);
+            return { name, place: f.properties.class, key: layer === "place" ? "place" : "natural", pop: null, lat, lon };
+          }).filter(Boolean);
+          const places = pick("place", c => c === "city" || c === "town" || c === "village");
+          const summits = pick("mountain_peak", c => c === "peak" || c === "saddle").map(q => ({ ...q, kind: q.place === "saddle" ? "pass" : "peak" }));
+          finish(places.length || summits.length ? { places, summits } : null);
+        } catch (er) { finish(null); }
+      });
+      setTimeout(() => finish(null), timeout);
+    } catch (er) { finish(null); }
+  });
+}
+
 export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 12000, eleReady = null } = {}) {
   const id = routeKey(tr), hit = stored("rf-places", 30), had = hit && hit.id === id ? hit.res : null;
   if (had) { onUpdate(had); if (!had.partial) return had; } // shown at once; a partial one is completed below
@@ -77,7 +119,17 @@ export async function fetchPlaces(tr, onUpdate = () => {}, { capMs = 12000, eleR
     if (finished) keep();
   })();
   await Promise.race([towns.then(() => { complete = true; }), new Promise(r => setTimeout(r, capMs))]);
-  // Photon can be unreachable from some browsers (blocked by a privacy extension, or throttled): ask Overpass instead
+  // Photon can be unreachable from some browsers (blocked by a privacy extension, or throttled): read the names from
+  // the map's own data, and only if that fails too, ask Overpass
+  if (!places.length) {
+    const t = await placesFromTiles(tr);
+    if (t && t.places.length) {
+      places.push(...t.places);
+      if (!summits.length) summits = t.summits;
+      answered++; complete = true; failed = 0;
+      update();
+    }
+  }
   if (!places.length) {
     const els = await overpass(overpassPlacesQuery(tr.pts), 25000);
     if (els) {
