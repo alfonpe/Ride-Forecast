@@ -34,7 +34,11 @@ function layout() {
   const pane = ob ? { w: bw / 2, h: bh, inner: { l: 22, r: 22, t: 62, b: 62 } } : { w: bw, h: bh, inner: { l: 36, r: 112, t: 36, b: 64 } };
   const pts = [...tr.pts, ...labels];
   const b = { w: Math.min(...pts.map(p => p.lon)), e: Math.max(...pts.map(p => p.lon)), s: Math.min(...pts.map(p => p.lat)), n: Math.max(...pts.map(p => p.lat)) };
-  const key = [tr.total, tr.pts.length, tr.pts[0].lat, tr.pts[0].lon, b.w, b.e, b.s, b.n, pane.w, darkTheme()].join("|");
+  // a named pass at the top or bottom edge of the frame gets room for its name beside it, instead of none at all
+  const tops = labels.filter(l => l.type === "high"), span = (b.n - b.s) || 1e-6;
+  if (tops.some(t => t.lat >= b.n - span * 0.06)) pane.inner.t += 34;
+  if (tops.some(t => t.lat <= b.s + span * 0.06)) pane.inner.b += 34;
+  const key = [tr.total, tr.pts.length, tr.pts[0].lat, tr.pts[0].lon, b.w, b.e, b.s, b.n, pane.w, pane.inner.t, pane.inner.b, darkTheme()].join("|");
   return { labels, ob, kTurn, pane, b, key };
 }
 export const cardMapReady = () => !!(state.track && cardMap && cardMap.key === layout().key);
@@ -204,13 +208,13 @@ export function drawCard() {
           .map(([x, yy]) => [x, yy, tw, th]).find(free);
         if (spot) break;
       }
-      // a named pass matters more than a clean line: if nothing else fits, its name may cross the route (it has a halo)
+      // a named pass is worth a longer look: every direction, further out (a hairline leads back to it); never across
+      // the route. If there's no clean spot, it's left off the picture (it's still on the profile and in the notes).
       if (!spot && l.type === "high") {
-        const loose = ([x, yy, w, h]) => x >= pb.x + 8 && x + w <= pb.x + pb.w - 8 && yy >= pb.y + 8 && yy + h <= pb.y + pb.h - 8 && !taken.some(([a, b, c, d]) => x < a + c && a < x + w && yy < b + d && b < yy + h);
-        for (const d of [14, 30, 52, 80]) {
-          spot = [[px - tw / 2, py - d - th], [px - tw / 2, py + d], [px + d, py - th / 2], [px - d - tw, py - th / 2],
-            [px - 12, py + d], [px - tw + 12, py + d], [px - 12, py - d - th], [px - tw + 12, py - d - th]].map(([x, yy]) => [x, yy, tw, th]).find(loose);
-          if (spot) break;
+        search: for (const d of [20, 40, 65, 95, 130, 170, 220]) for (let k = 0; k < 16; k++) {
+          const a = k * Math.PI / 8, cx = Math.cos(a), cy = Math.sin(a);
+          const r = [px + cx * (d + tw / 2 * Math.abs(cx)) - tw / 2, py + cy * (d + th / 2 * Math.abs(cy)) - th / 2, tw, th];
+          if (free(r)) { spot = r; break search; }
         }
       }
       if (!spot) { g.letterSpacing = "0px"; continue; }
@@ -237,9 +241,9 @@ export function drawCard() {
     g.restore();
   };
 
-  if (!ob) panel(box, { inner: { l: 36, r: 112, t: 36, b: 64 }, windBadge: true });
+  if (!ob) panel(box, { inner: L0.pane.inner, windBadge: true });
   else {
-    const half = box.w / 2, tKm = tr.cum[S[kTurn].i] / 1000, tAt = state.startMs + locate(tr, tKm * 1000).t * 1000, inner = { l: 22, r: 22, t: 62, b: 62 };
+    const half = box.w / 2, tKm = tr.cum[S[kTurn].i] / 1000, tAt = state.startMs + locate(tr, tKm * 1000).t * 1000, inner = L0.pane.inner;
     panel({ x: box.x, y: box.y, w: half, h: box.h }, { k0: 0, k1: kTurn, inner, title: `→ Out · km 0–${r0(tKm)} · ${fmtTime(state.startMs)}–${fmtTime(tAt)}` });
     panel({ x: box.x + half, y: box.y, w: half, h: box.h }, { k0: kTurn, k1: last, inner, title: `← Back · km ${r0(tKm)}–${r0(tr.total / 1000)} · ${fmtTime(tAt)}–${fmtTime(state.endMs)}` });
     g.strokeStyle = css("--line"); g.lineWidth = 2; g.beginPath(); g.moveTo(box.x + half, box.y + 18); g.lineTo(box.x + half, box.y + box.h - 58); g.stroke();
