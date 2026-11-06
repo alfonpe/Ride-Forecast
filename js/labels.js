@@ -48,7 +48,7 @@ export function pickLabels(tr, places = [], summits = [], { every = 25, within =
   const totalKm = tr.total / 1000;
   for (let w = 0; w * every < totalKm; w++) {
     const pick = near.filter(q => q.km >= w * every && q.km < (w + 1) * every).sort((a, b) => size(b) - size(a)).find(q => !clash(q));
-    if (pick) out.push({ type: "place", lat: pick.lat, lon: pick.lon, text: pick.name, km: pick.km });
+    if (pick) out.push({ type: "place", place: pick.place, pop: pick.pop, lat: pick.lat, lon: pick.lon, text: pick.name, km: pick.km });
   }
   // the turnaround / furthest point from the start
   let fi = 0, fd = 0;
@@ -56,7 +56,7 @@ export function pickLabels(tr, places = [], summits = [], { every = 25, within =
   const far = tr.pts[fi];
   if (fd > 3000 && !out.some(o => hav(o, far) < 4000)) {
     const q = near.filter(c => hav(c, far) <= within * 1000).sort((a, b) => hav(a, far) - hav(b, far))[0];
-    if (q && !out.some(o => o.text === q.name)) out.push({ type: "place", far: true, lat: q.lat, lon: q.lon, text: q.name, km: q.km });
+    if (q && !out.some(o => o.text === q.name)) out.push({ type: "place", far: true, place: q.place, pop: q.pop, lat: q.lat, lon: q.lon, text: q.name, km: q.km });
   }
   // the high point, only when it's a real climb above the start, named after the pass it belongs to
   if (tr.hasEle) {

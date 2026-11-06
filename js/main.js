@@ -1,6 +1,6 @@
 import { compareReversed, scoreStarts } from "./best.js";
-import { cardFile, drawCard } from "./card.js";
-import { renderCharts } from "./charts.js";
+import { cardFile, cardMapReady, drawCard, prepareCardMap } from "./card.js";
+import { renderCharts, renderExposure } from "./charts.js";
 import { demoGPX } from "./demo.js";
 import { parseRouteFile, readRouteBytes, routesToGPX } from "./files.js";
 import { buildTrack, fetchElevation, locate, makeSamples, routeKey } from "./geo.js";
@@ -353,7 +353,15 @@ $("#hazards").addEventListener("click", e => {
   const km = +b.dataset.km, s = nearestSample(km); setHover(km); map.panTo([s.lat, s.lon]);
 });
 document.addEventListener("rf:start", e => useStart(e.detail)); // from the best-start chart
-$("#picks").addEventListener("click", e => { const b = e.target.closest("button[data-ms]"); if (b) useStart(+b.dataset.ms); });
+$("#picks").addEventListener("click", e => { const b = e.target.closest("[data-ms]"); if (b && !b.classList.contains("selected")) useStart(+b.dataset.ms); });
+$("#picks").addEventListener("keydown", e => { const b = e.target.closest("[data-ms]"); if (b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); b.click(); } });
+$("#dayPick").addEventListener("click", e => { const b = e.target.closest("button[data-ms]"); if (b) useStart(+b.dataset.ms); });
+$("#expoPart").addEventListener("click", e => {
+  const b = e.target.closest("button[data-part]"); if (!b) return;
+  state.expoPart = b.dataset.part;
+  $("#expoPart").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  renderExposure();
+});
 $("#stops").addEventListener("change", () => { if (state.track) run(false); });
 $("#wf").addEventListener("change", () => { if (state.track) run(false); });
 $("#hills").addEventListener("change", () => { if (state.track) run(false); });
@@ -419,6 +427,8 @@ function cardHint() {
   return state.places.partial ? `${base} Some town names couldn't be loaded right now.` : base;
 }
 function drawPreview() {
+  // the quiet map behind the route is drawn in the background; the preview updates when it's ready
+  if (!cardMapReady()) prepareCardMap().then(ok => { if (ok && card && !$("#imgView").hidden) redrawCard(); });
   const canvas = drawCard(), slug = (state.name || "ride").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "ride";
   const dataUrl = canvas.toDataURL("image/png"), file = cardFile(dataUrl, `ride-plan-${slug}.png`);
   if (card) URL.revokeObjectURL(card.url);
