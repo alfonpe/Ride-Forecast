@@ -17,14 +17,19 @@ const W = 1080, H = 1350, PAD = 64;
 const FONT = '"IBM Plex Sans",system-ui,sans-serif', BODY = '"IBM Plex Sans",system-ui,sans-serif', MONO = '"IBM Plex Mono",ui-monospace,monospace';
 const plain = html => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
-/* ---------- the map behind the route, in Route Library's quiet style ----------
-   Land in the panel colour, the sea and the coastline, nothing else: the card adds its own towns and passes.
-   Drawn once per route/theme with MapLibre on a hidden canvas (OpenFreeMap vector data, which doesn't taint the
-   canvas), kept as a picture with its bounds, so drawCard() can stay synchronous. Until it's ready, or without
-   WebGL, the card draws on the plain panel as before. */
+/* ---------- the map behind the route: Route Library's route map ----------
+   A soft shaded relief of the land (open elevation tiles on AWS, terrarium encoding), the sea and coastline, rivers
+   and reservoirs with their names, faint main roads, named peaks, nearby towns in light grey, the big cities, and
+   the card's own towns and passes, all placed by MapLibre so no name touches another, the route, the start/finish
+   and hazard markers, the wind badge or the key. Drawn once per route, names and theme on a hidden canvas
+   (OpenFreeMap and the elevation tiles allow it, so the canvas stays exportable), kept as a picture with its bounds:
+   drawCard() stays synchronous. Until it's ready, or without WebGL, the card draws its own names on a plain panel. */
 let cardMap = null, pending = null;
 const mercY = lat => Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2));
 const darkTheme = () => (css("--bg").match(/\w\w/g) || ["ff"]).reduce((a, h) => a + parseInt(h, 16), 0) < 384;
+const DEM_TILES = "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png";
+const MAP_PR = 2; // the map is laid out at half the card's pixels and drawn at 2×, so its names have Route Library's proportions
+const isCityLabel = l => l.type === "place" && (l.place === "city" || l.pop >= 100000);
 // what the card shows: the labels, the out-and-back split, and the size and inner margins of each map panel
 function layout() {
   const tr = state.track, S = state.samples;
@@ -36,20 +41,85 @@ function layout() {
   const b = { w: Math.min(...pts.map(p => p.lon)), e: Math.max(...pts.map(p => p.lon)), s: Math.min(...pts.map(p => p.lat)), n: Math.max(...pts.map(p => p.lat)) };
   // a named pass at the top or bottom edge of the frame gets room for its name beside it, instead of none at all
   const tops = labels.filter(l => l.type === "high"), span = (b.n - b.s) || 1e-6;
-  if (tops.some(t => t.lat >= b.n - span * 0.06)) pane.inner.t += 34;
-  if (tops.some(t => t.lat <= b.s + span * 0.06)) pane.inner.b += 34;
-  const key = [tr.total, tr.pts.length, tr.pts[0].lat, tr.pts[0].lon, b.w, b.e, b.s, b.n, pane.w, pane.inner.t, pane.inner.b, darkTheme()].join("|");
+  if (tops.some(t => t.lat >= b.n - span * 0.06)) pane.inner.t += 60;
+  if (tops.some(t => t.lat <= b.s + span * 0.06)) pane.inner.b += 60;
+  const key = [tr.total, tr.pts.length, tr.pts[0].lat, tr.pts[0].lon, b.w, b.e, b.s, b.n, pane.w, pane.inner.t, pane.inner.b, darkTheme(),
+    labels.map(l => l.text).join("/"), state.hazards.length].join("|");
   return { labels, ob, kTurn, pane, b, key };
+}
+// the map's colours: Route Library's in light, the same family in dark
+function mapColours(dark) {
+  return dark ? {
+    bg: css("--surface-2"), water: "#20262a", coast: "#36414a", river: "#2e3b42", waterText: "#7f97a3", road: "rgba(255,255,255,0.10)",
+    shadow: "#0a0a09", highlight: "#3a3a36", accent: "#262624", peak: "#9a9a90", nearby: "#8a8a84", city: "#e2e2dc", town: "#d0d0ca", pass: "#ecebe7"
+  } : {
+    bg: css("--surface-2"), water: "#e1e8ec", coast: "#bfcbd1", river: "#c9d6dc", waterText: "#7f939b", road: "rgba(255,255,255,0.85)",
+    shadow: "#b9b9ae", highlight: "#ffffff", accent: "#cfcfc4", peak: "#7a7a70", nearby: "#8f8f88", city: "#3a3a3a", town: "#4a4a4a", pass: "#1a1a1a"
+  };
+}
+function cardStyle(c, data) {
+  const FONT = ["Noto Sans Regular"], BOLD = ["Noto Sans Bold"], ITALIC = ["Noto Sans Italic"];
+  const notNamed = names => ["!", ["in", ["get", "name"], ["literal", names]]];
+  const fc = features => ({ type: "geojson", data: { type: "FeatureCollection", features } });
+  const pt = (lon, lat, props) => ({ type: "Feature", properties: props, geometry: { type: "Point", coordinates: [lon, lat] } });
+  const anchors = ["right", "left", "bottom", "top", "bottom-right", "bottom-left", "top-right", "top-left"];
+  return {
+    version: 8, glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+    sources: {
+      omt: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
+      dem: { type: "raster-dem", tiles: [DEM_TILES], tileSize: 256, maxzoom: 13, encoding: "terrarium" },
+      towns: fc(data.towns.map(l => pt(l.lon, l.lat, { name: isCityLabel(l) ? l.text.toUpperCase() : l.text, city: isCityLabel(l) }))),
+      passes: fc(data.passes.map(l => pt(l.lon, l.lat, { name: l.text, ele: l.ele || 0 }))),
+      guards: fc([])
+    },
+    layers: [
+      { id: "bg", type: "background", paint: { "background-color": c.bg } },
+      { id: "hills", type: "hillshade", source: "dem", paint: { "hillshade-shadow-color": c.shadow, "hillshade-highlight-color": c.highlight, "hillshade-accent-color": c.accent, "hillshade-exaggeration": 0.55, "hillshade-illumination-direction": 315 } },
+      { id: "water", type: "fill", source: "omt", "source-layer": "water", paint: { "fill-color": c.water } },
+      { id: "coast", type: "line", source: "omt", "source-layer": "water", paint: { "line-color": c.coast, "line-width": 0.7 } },
+      { id: "rivers", type: "line", source: "omt", "source-layer": "waterway", filter: ["in", ["get", "class"], ["literal", ["river", "canal"]]], paint: { "line-color": c.river, "line-width": 1 } },
+      { id: "roads", type: "line", source: "omt", "source-layer": "transportation", filter: ["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary"]]], paint: { "line-color": c.road, "line-width": ["match", ["get", "class"], "motorway", 1.8, 1.2] } },
+      // names are placed top layer first: the markers and the route every name keeps off, the passes, the towns the
+      // route goes through, then the big cities, nearby towns, peaks and water names wherever there's room left
+      { id: "river-names", type: "symbol", source: "omt", "source-layer": "waterway", filter: ["all", ["==", ["get", "class"], "river"], ["has", "name"]],
+        layout: { "symbol-placement": "line", "text-field": ["get", "name"], "text-font": ITALIC, "text-size": 10, "symbol-spacing": 220 },
+        paint: { "text-color": c.waterText, "text-halo-color": c.bg, "text-halo-width": 1.2 } },
+      { id: "water-names", type: "symbol", source: "omt", "source-layer": "water_name", filter: ["has", "name"],
+        layout: { "text-field": ["get", "name"], "text-font": ITALIC, "text-size": 10.5, "text-max-width": 8 },
+        paint: { "text-color": c.waterText, "text-halo-color": c.water, "text-halo-width": 1 } },
+      { id: "peaks", type: "symbol", source: "omt", "source-layer": "mountain_peak", filter: ["all", ["has", "name"], notNamed(data.passNames)],
+        layout: { "text-field": ["concat", "▲ ", ["get", "name"], ["case", ["has", "ele"], ["concat", " ", ["to-string", ["get", "ele"]]], ""]], "text-font": FONT, "text-size": 10, "symbol-sort-key": ["-", 0, ["coalesce", ["get", "ele"], 0]], "text-padding": 6 },
+        paint: { "text-color": c.peak, "text-halo-color": c.bg, "text-halo-width": 1.3 } },
+      { id: "nearby", type: "symbol", source: "omt", "source-layer": "place", filter: ["all", ["in", ["get", "class"], ["literal", ["town", "village"]]], notNamed(data.townNames)],
+        layout: { "text-field": ["get", "name"], "text-font": FONT, "text-size": 10.5, "symbol-sort-key": ["match", ["get", "class"], "town", 0, 1], "text-padding": 3 },
+        paint: { "text-color": c.nearby, "text-halo-color": c.bg, "text-halo-width": 1.3 } },
+      { id: "cities", type: "symbol", source: "omt", "source-layer": "place", filter: ["all", ["==", ["get", "class"], "city"], notNamed(data.townNames)],
+        layout: { "text-field": ["upcase", ["get", "name"]], "text-font": BOLD, "text-size": 11, "text-letter-spacing": 0.14, "text-max-width": 9, "text-padding": 4 },
+        paint: { "text-color": c.city, "text-halo-color": c.bg, "text-halo-width": 1.6 } },
+      { id: "towns", type: "symbol", source: "towns",
+        layout: { "icon-allow-overlap": true, "icon-ignore-placement": true, "icon-image": "dot", "text-field": ["get", "name"], "text-font": ["case", ["get", "city"], ["literal", BOLD], ["literal", FONT]],
+          "text-size": ["case", ["get", "city"], 11.5, 12], "text-letter-spacing": ["case", ["get", "city"], 0.12, 0],
+          "text-variable-anchor": anchors, "text-radial-offset": 1.35, "text-max-width": 14, "text-padding": 2 },
+        paint: { "text-color": c.town, "text-halo-color": c.bg, "text-halo-width": 1.6 } },
+      { id: "passes", type: "symbol", source: "passes",
+        layout: { "icon-allow-overlap": true, "icon-ignore-placement": true, "icon-image": "peak", "text-field": ["get", "name"], "text-font": BOLD, "text-size": 12, "symbol-sort-key": ["-", 0, ["get", "ele"]],
+          "text-variable-anchor": ["bottom", "top", "right", "left", "bottom-right", "bottom-left", "top-right", "top-left"], "text-radial-offset": 1.6, "text-max-width": data.narrow ? 10 : 18, "text-justify": "auto", "text-padding": 2 },
+        paint: { "text-color": c.pass, "text-halo-color": c.bg, "text-halo-width": 1.8 } },
+      { id: "guards", type: "symbol", source: "guards",
+        layout: { "icon-image": ["get", "img"], "icon-anchor": ["coalesce", ["get", "anchor"], "center"], "icon-allow-overlap": true, "icon-padding": 0, "icon-rotation-alignment": "viewport" }, paint: { "icon-opacity": 0 } }
+    ]
+  };
 }
 export const cardMapReady = () => !!(state.track && cardMap && cardMap.key === layout().key);
 export function prepareCardMap() {
-  if (!state.track || !window.maplibregl || maplibregl.supported?.() === false) return Promise.resolve(false);
-  const { pane, b, key } = layout();
+  if (!state.track || !state.samples || !window.maplibregl || maplibregl.supported?.() === false) return Promise.resolve(false);
+  const L = layout(), { pane, b, key, labels, ob } = L;
   if (cardMap && cardMap.key === key) return Promise.resolve(true);
   if (pending && pending.key === key) return pending.done;
-  const dark = darkTheme(), land = css("--surface-2");
+  const tr = state.track, S = state.samples, c = mapColours(darkTheme());
+  const cw = pane.w / MAP_PR, ch = pane.h / MAP_PR, towns = labels.filter(l => l.type === "place"), passes = labels.filter(l => l.type === "high");
   const el = document.createElement("div");
-  el.style.cssText = `position:fixed;left:-20000px;top:0;width:${pane.w}px;height:${pane.h}px;pointer-events:none`;
+  el.style.cssText = `position:fixed;left:-20000px;top:0;width:${cw}px;height:${ch}px;pointer-events:none`;
   document.body.appendChild(el);
   const done = new Promise(resolve => {
     let m, finished = false;
@@ -60,7 +130,9 @@ export function prepareCardMap() {
           const img = document.createElement("canvas"); img.width = pane.w; img.height = pane.h;
           img.getContext("2d").drawImage(m.getCanvas(), 0, 0, pane.w, pane.h);
           const bb = m.getBounds();
-          cardMap = { key, img, w: bb.getWest(), e: bb.getEast(), n: bb.getNorth(), s: bb.getSouth() };
+          // which of the card's towns and passes found room (the card draws their markers)
+          const placed = new Set(m.queryRenderedFeatures({ layers: ["towns", "passes"] }).map(f => `${f.layer.id}|${f.properties.name}`));
+          cardMap = { key, img, w: bb.getWest(), e: bb.getEast(), n: bb.getNorth(), s: bb.getSouth(), placed };
         }
       } catch (e) { ok = false; }
       try { m && m.remove(); } catch (e) { /* gone */ }
@@ -68,16 +140,54 @@ export function prepareCardMap() {
       resolve(ok);
     };
     try {
-      m = new maplibregl.Map({ container: el, interactive: false, attributionControl: false, fadeDuration: 0, pixelRatio: 1, preserveDrawingBuffer: true,
-        bounds: [[b.w, b.s], [b.e, b.n]], fitBoundsOptions: { padding: { top: pane.inner.t, bottom: pane.inner.b, left: pane.inner.l, right: pane.inner.r }, maxZoom: 14 },
-        style: { version: 8, sources: { omt: { type: "vector", url: "https://tiles.openfreemap.org/planet" } }, layers: [
-          { id: "land", type: "background", paint: { "background-color": land } },
-          { id: "water", type: "fill", source: "omt", "source-layer": "water", paint: { "fill-color": dark ? "#20262a" : "#e3e9ec" } },
-          { id: "coast", type: "line", source: "omt", "source-layer": "water", paint: { "line-color": dark ? "#36414a" : "#c3ced3", "line-width": 1.2 } }
-        ] } });
-      m.once("idle", () => finish(true));
+      const style = cardStyle(c, {
+        towns, passes, townNames: towns.map(l => l.text), passNames: passes.map(l => l.name), narrow: !!ob
+      });
+      m = new maplibregl.Map({ container: el, interactive: false, attributionControl: false, fadeDuration: 0, pixelRatio: MAP_PR, preserveDrawingBuffer: true,
+        bounds: [[b.w, b.s], [b.e, b.n]], fitBoundsOptions: { padding: { top: pane.inner.t / MAP_PR, bottom: pane.inner.b / MAP_PR, left: pane.inner.l / MAP_PR, right: pane.inner.r / MAP_PR }, maxZoom: 14 },
+        style });
       m.on("error", () => {});
-      setTimeout(() => finish(false), 10000);
+      // the marker images, handed over the moment the map first asks for one (added later, names already laid out skip them)
+      const blank = (w, h) => { const W2 = Math.max(1, Math.round(w * MAP_PR)), H2 = Math.max(1, Math.round(h * MAP_PR)); return { width: W2, height: H2, data: new Uint8Array(W2 * H2 * 4) }; };
+      const IMAGES = {
+        // the town dot and pass triangle only hold their spot here: the card draws them over its route
+        dot: () => blank(9, 9), peak: () => blank(12, 12),
+        // invisible markers that every name keeps off: along the route (as thick as the card draws it), on the start,
+        // finish, turnaround and hazard markers, over the wind badge and the key, and along the edges (no name cut off)
+        "g-pin": () => blank(24, 24), // the edges are wide bands reaching well outside the frame, so a name can't sit beyond an edge either
+        "g-h": () => blank(cw + 240, 120), "g-v": () => blank(120, ch + 240),
+        "g-key": () => blank(cw + 240, 146), "g-title": () => blank(cw, 30), "g-badge": () => blank(76, 78)
+      };
+      m.on("styleimagemissing", e => {
+        const r = /^r(\d+)$/.exec(e.id), f = r ? () => blank(+r[1], +r[1]) : IMAGES[e.id]; // r12: a 12 px square along the route
+        if (f && !m.hasImage(e.id)) m.addImage(e.id, f(), { pixelRatio: MAP_PR });
+      });
+      m.once("load", () => {
+        try {
+          const at = (x, y) => { const q = m.unproject([x, y]); return [q.lng, q.lat]; };
+          const g = (lonlat, img, anchor) => ({ type: "Feature", properties: anchor ? { img, anchor } : { img }, geometry: { type: "Point", coordinates: lonlat } });
+          const feats = [g(at(cw / 2, 5), "g-h", "bottom"), g(at(5, ch / 2), "g-v", "right"), g(at(cw - 5, ch / 2), "g-v", "left"), g(at(cw / 2, ch - 26), "g-key", "top")];
+          if (ob) feats.push(g(at(cw / 2, 15), "g-title"));
+          else feats.push(g(at(cw - 36, 50), "g-badge"));
+          const P = p => [p.lon, p.lat];
+          feats.push(g(P(tr.pts[0]), "g-pin"), g(P(tr.pts[tr.pts.length - 1]), "g-pin"));
+          if (L.kTurn != null) feats.push(g(P(S[L.kTurn]), "g-pin"));
+          state.hazards.forEach(z => feats.push(g(P(S[z.k0]), "g-pin")));
+          // the route, every few pixels, as wide as the card draws it there (thicker where the wind is stronger)
+          let last = null;
+          for (let k = 0; k < S.length - 1; k++) {
+            const size = 2 * Math.ceil(((3 + Math.min(Math.max(S[k].ws, 0), 40) / 40 * 19 + 7) / MAP_PR + 2) / 2);
+            for (let i = S[k].i; i <= Math.min(S[k + 1].i, tr.pts.length - 1); i++) {
+              const q = m.project([tr.pts[i].lon, tr.pts[i].lat]);
+              if (last && Math.hypot(q.x - last.x, q.y - last.y) < 4) continue;
+              last = q; feats.push(g(P(tr.pts[i]), `r${size}`));
+            }
+          }
+          m.getSource("guards").setData({ type: "FeatureCollection", features: feats });
+        } catch (e) { finish(false); return; }
+        m.once("idle", () => finish(true));
+      });
+      setTimeout(() => finish(false), 15000);
     } catch (e) { finish(false); }
   });
   pending = { key, done };
@@ -198,7 +308,7 @@ export function drawCard() {
     const spacing = l => isCity(l) ? "2.5px" : "0px";
     // most important first, so they get the best spots: the summit, then the turnaround, then towns
     const rank = l => l.type === "high" ? 0 : l.far ? 1 : 2;
-    for (const l of [...labels].sort((a, b) => rank(a) - rank(b))) {
+    for (const l of base ? [] : [...labels].sort((a, b) => rank(a) - rank(b))) { // with the map picture, its names are already placed
       g.font = fontFor(l); g.letterSpacing = spacing(l);
       const [px, py] = XY(l.lat, l.lon), tw = g.measureText(textFor(l)).width, th = 26;
       let spot = null;
@@ -229,6 +339,14 @@ export function drawCard() {
       g.fillStyle = ink; g.strokeStyle = bg2; g.lineWidth = 6; g.lineJoin = "round";
       g.fillStyle = l.type === "high" || isCity(l) ? ink : muted;
       g.font = fontFor(l); g.letterSpacing = spacing(l); g.strokeText(textFor(l), spot[0], spot[1] + 20); g.fillText(textFor(l), spot[0], spot[1] + 20); g.letterSpacing = "0px";
+    }
+    if (base) for (const l of labels) { // markers of the names the map placed, over the route
+      const isPass = l.type === "high", name = isPass ? l.text : isCityLabel(l) ? l.text.toUpperCase() : l.text;
+      if (!base.placed.has(`${isPass ? "passes" : "towns"}|${name}`)) continue;
+      const [px, py] = XY(l.lat, l.lon);
+      g.fillStyle = ink; g.strokeStyle = css("--bg"); g.lineWidth = 3; g.beginPath();
+      if (isPass) { g.moveTo(px, py - 10); g.lineTo(px + 10, py + 8); g.lineTo(px - 10, py + 8); g.closePath(); } else g.arc(px, py, isCityLabel(l) ? 7 : 6, 0, 7);
+      g.stroke(); g.fill();
     }
     here.forEach(({ z, n }) => { const [px, py] = hazAt(z); badge(px, py, n, css(z.sev === "bad" ? "--head" : "--cross")); });
     const dot = (i, col, label) => {
