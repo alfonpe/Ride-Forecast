@@ -1,6 +1,7 @@
 import { renderBest, renderCharts, renderExposure } from "./charts.js";
 import { compass, locate } from "./geo.js";
 import { HAZ } from "./hazards.js";
+import { namedTops } from "./labels.js";
 import { isLoop } from "./orient.js";
 import { timeSplit } from "./pacing.js";
 import { waterGap } from "./pois.js";
@@ -138,6 +139,11 @@ export function renderNotes() {
   else if (minBike >= 1) kit = "Winter jacket, tights, full gloves, overshoes.";
   else kit = "Full winter kit and watch for ice.";
   notes.push(["info", `Kit (feels as low as ${r0(minBike)} °C on the bike): ${kit}`]);
+  // the passes you ride over (only tops with a name), with when you get there and how it feels on the bike
+  if (tr.hasEle) for (const t of namedTops(tr, state.places ? state.places.summits : [])) {
+    const s = nearestSample(t.km), at = state.startMs + locate(tr, t.km * 1000).t * 1000;
+    notes.push([s.bike < 5 ? "warn" : "info", `${t.name} (${t.ele} m) at km ${r0(t.km)}, around ${fmtTime(at)}: ${r0(s.bike)} °C on the bike${s.gust >= 40 ? `, gusts to ${r0(s.gust)} km/h` : ""}.`]);
+  }
   if (state.opts.stops.length) notes.push(["info", `Stops: ${state.opts.stops.map(st => `km ${r1(st.km)} (${st.min} min)`).join(", ")}, ${r0(sim.stopSec / 60)} min in total.`]);
   if (state.sun && state.sun.set && end > state.sun.set) notes.push(["bad", `You finish at ${fmtTime(end)}, after sunset (${fmtTime(state.sun.set)}). Bring lights.`]);
   else if (state.sun && state.sun.rise && state.startMs < state.sun.rise) notes.push(["warn", `You start before sunrise (${fmtTime(state.sun.rise)}). Bring lights.`]);
