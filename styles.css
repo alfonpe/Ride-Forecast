@@ -14,14 +14,7 @@
   --tile-filter:grayscale(.9) contrast(.9) brightness(1.06);
   color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#141413; --surface:#141413; --surface-2:#1C1C1A; --ink:#ECEBE7; --muted:#A3A29C; --faint:#8E8D88;
-  --line:#2C2C2A; --row:#262624; --chip:#3A3A37; --selected:#23231F; --hover:#1A1A18;
-  --accent:#ECEBE7; --accent-soft:#23231F; --accent-ink:#141413;
-  --head:#D9773F; --tail:#9AAD45; --cross:#CFA23A;
-  --warm:#D98A4E; --cool:#7EA3C4; --cafe:#C08A57; --elev:#33332F; --cold:#6F8698; --dark:#8A8A85; --haz:#E08A5A;
-  --tile-filter:invert(1) hue-rotate(180deg) grayscale(.9) brightness(.8) contrast(.9);
-  color-scheme:dark;}}
+/* light is the default whatever the device prefers; dark only when chosen with the theme button */
 :root[data-theme="dark"]{
   --bg:#141413; --surface:#141413; --surface-2:#1C1C1A; --ink:#ECEBE7; --muted:#A3A29C; --faint:#8E8D88;
   --line:#2C2C2A; --row:#262624; --chip:#3A3A37; --selected:#23231F; --hover:#1A1A18;

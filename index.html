@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
-<link rel="stylesheet" href="styles.css?v=9820c30613">
-<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=9820c30613","./js/card.js":"./js/card.js?v=9820c30613","./js/charts.js":"./js/charts.js?v=9820c30613","./js/demo.js":"./js/demo.js?v=9820c30613","./js/files.js":"./js/files.js?v=9820c30613","./js/geo.js":"./js/geo.js?v=9820c30613","./js/hazards.js":"./js/hazards.js?v=9820c30613","./js/hover.js":"./js/hover.js?v=9820c30613","./js/icons.js":"./js/icons.js?v=9820c30613","./js/labels.js":"./js/labels.js?v=9820c30613","./js/main.js":"./js/main.js?v=9820c30613","./js/map.js":"./js/map.js?v=9820c30613","./js/net.js":"./js/net.js?v=9820c30613","./js/orient.js":"./js/orient.js?v=9820c30613","./js/pacing.js":"./js/pacing.js?v=9820c30613","./js/places.js":"./js/places.js?v=9820c30613","./js/pois.js":"./js/pois.js?v=9820c30613","./js/render.js":"./js/render.js?v=9820c30613","./js/share.js":"./js/share.js?v=9820c30613","./js/shortlink.js":"./js/shortlink.js?v=9820c30613","./js/state.js":"./js/state.js?v=9820c30613","./js/stats.js":"./js/stats.js?v=9820c30613","./js/time.js":"./js/time.js?v=9820c30613","./js/util.js":"./js/util.js?v=9820c30613","./js/weather.js":"./js/weather.js?v=9820c30613"}}</script><!-- version:end -->
+<link rel="stylesheet" href="styles.css?v=843dd9e39e">
+<!-- version:start --><script type="importmap">{"imports":{"./js/best.js":"./js/best.js?v=843dd9e39e","./js/card.js":"./js/card.js?v=843dd9e39e","./js/charts.js":"./js/charts.js?v=843dd9e39e","./js/demo.js":"./js/demo.js?v=843dd9e39e","./js/files.js":"./js/files.js?v=843dd9e39e","./js/geo.js":"./js/geo.js?v=843dd9e39e","./js/hazards.js":"./js/hazards.js?v=843dd9e39e","./js/hover.js":"./js/hover.js?v=843dd9e39e","./js/icons.js":"./js/icons.js?v=843dd9e39e","./js/labels.js":"./js/labels.js?v=843dd9e39e","./js/main.js":"./js/main.js?v=843dd9e39e","./js/map.js":"./js/map.js?v=843dd9e39e","./js/net.js":"./js/net.js?v=843dd9e39e","./js/orient.js":"./js/orient.js?v=843dd9e39e","./js/pacing.js":"./js/pacing.js?v=843dd9e39e","./js/places.js":"./js/places.js?v=843dd9e39e","./js/pois.js":"./js/pois.js?v=843dd9e39e","./js/render.js":"./js/render.js?v=843dd9e39e","./js/share.js":"./js/share.js?v=843dd9e39e","./js/shortlink.js":"./js/shortlink.js?v=843dd9e39e","./js/state.js":"./js/state.js?v=843dd9e39e","./js/stats.js":"./js/stats.js?v=843dd9e39e","./js/time.js":"./js/time.js?v=843dd9e39e","./js/util.js":"./js/util.js?v=843dd9e39e","./js/weather.js":"./js/weather.js?v=843dd9e39e"}}</script><!-- version:end -->
 </head>
 <body>
 <div class="wrap">
@@ -23,7 +23,7 @@
       <span class="muted" id="tzPill" title="Times are shown in the route's local time zone"><span id="tzName">—</span></span>
       <button class="btn" id="share" type="button">Share link</button>
       <button class="btn" id="shareImg" type="button">Share image</button>
-      <button class="btn icon" id="theme" type="button" aria-label="Theme: auto"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg></button>
+      <button class="btn icon" id="theme" type="button" aria-label="Theme: light"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg></button>
     </div>
   </header>
 
@@ -231,6 +231,6 @@
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js" integrity="sha384-4CB9Vtol9LN6lGgBCvmPLbUEZwilrqIvPieSRurgAXAB7FVJaLS9n8WyAIA5wjQ+" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script data-goatcounter="https://alfonpe.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
-<script type="module" src="js/main.js?v=9820c30613"></script>
+<script type="module" src="js/main.js?v=843dd9e39e"></script>
 </body>
 </html>
