@@ -310,9 +310,9 @@ function saveSettings() {
     localStorage.setItem("rf-mode", state.timeMode);
   } catch (e) {}
 }
-const THEMES = ["auto", "light", "dark"];
+// light by default (whatever the device prefers); dark only when chosen here, and remembered on this device
 function applyTheme(t) {
-  if (t === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  if (t === "dark") document.documentElement.dataset.theme = "dark"; else delete document.documentElement.dataset.theme;
   $("#theme").setAttribute("aria-label", `Theme: ${t} (click to change)`); $("#theme").title = `Theme: ${t}`;
   if (state.samples) { renderAll(false); }
 }
@@ -325,7 +325,7 @@ try {
   const wf = localStorage.getItem("rf-wf"); if (wf && [...$("#wf").options].some(x => x.value === wf)) $("#wf").value = wf;
   const st = localStorage.getItem("rf-stops"); if (st) $("#stops").value = st;
   if (localStorage.getItem("rf-mode") === "arrive") setTimeMode("arrive");
-  const th = localStorage.getItem("rf-theme"); if (THEMES.includes(th) && th !== "auto") document.documentElement.dataset.theme = th;
+  if (localStorage.getItem("rf-theme") === "dark") document.documentElement.dataset.theme = "dark";
 } catch (e) {}
 
 $("#form").addEventListener("submit", e => {
@@ -543,11 +543,10 @@ $("#imgView").addEventListener("click", e => {
 });
 addEventListener("keydown", e => { if (e.key === "Escape" && !$("#imgView").hidden) hideImage(); });
 $("#theme").addEventListener("click", () => {
-  const cur = document.documentElement.dataset.theme || "auto", next = THEMES[(THEMES.indexOf(cur) + 1) % 3];
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   try { localStorage.setItem("rf-theme", next); } catch (e) {}
   applyTheme(next);
 });
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (state.samples) renderAll(false); });
 
 initMap();
 // a DOM listener (not map.on): taps landing on a wind arrow or pin must count too, and markers don't pass clicks to the map
@@ -559,7 +558,7 @@ $("#map").addEventListener("click", e => {
 });
 addEventListener("keydown", e => { if (e.key === "Escape" && state.pickingStart) { state.pickingStart = false; $("#map").classList.remove("picking"); renderDirection(); } });
 {
-  const th = document.documentElement.dataset.theme || "auto";
+  const th = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   $("#theme").setAttribute("aria-label", `Theme: ${th} (click to change)`); $("#theme").title = `Theme: ${th}`;
   openShared().then(opened => {
     if (opened) return;
