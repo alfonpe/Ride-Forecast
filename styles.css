@@ -313,19 +313,22 @@ tbody tr:focus-visible{outline-offset:-2px}
 footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;max-width:120ch}
 footer a{color:inherit}
 
-/* ---------- share dialogs ---------- */
-.imgview{position:fixed;inset:0;z-index:2000;background:rgba(20,20,20,.88);display:flex;padding:16px;overflow-y:auto}
-.imgview-box{display:grid;gap:10px;justify-items:center;max-width:min(520px,100%);margin:auto}
-.imgview img{max-width:100%;max-height:calc(100dvh - 190px);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5);-webkit-touch-callout:default}
-.imgview p{margin:0;color:#fff;font-size:14px;text-align:center}
-.imgview-title{display:flex;align-items:center;gap:8px;width:100%;color:#fff;font-size:13px;font-weight:600}
-.imgview-title input{flex:1;min-width:0;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font:inherit;font-weight:500}
-.linkbox{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:22px 24px 24px;width:min(560px,100%);justify-items:stretch}
-.linkbox h2{font-size:22px;font-weight:600;letter-spacing:-.01em}
-.linkbox p{color:var(--muted);text-align:left}
-.linkbox input{width:100%;padding:10px 12px;border:1px solid var(--chip);border-radius:6px;background:var(--bg);font:500 15px var(--mono)}
-.linkbox .imgview-actions{justify-content:flex-start}
-.imgview-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+/* ---------- share dialogs: Route Library's dialog (white panel, thin border, light backdrop) ---------- */
+.imgview{position:fixed;inset:0;z-index:2000;background:rgba(20,20,20,.35);display:flex;padding:16px;overflow-y:auto}
+.dialog{margin:auto;width:min(560px,100%);display:flex;flex-direction:column;gap:14px;border:1px solid var(--line);border-radius:10px;padding:22px 24px 24px;background:var(--bg);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.img-dialog{width:min(600px,100%)}
+.dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.dialog h2{margin-top:4px;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.dialog p{margin:0;max-width:62ch}
+.icon-btn{border:0;background:none;width:44px;height:44px;margin:-8px -10px 0 0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;color:var(--muted);flex:none}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.dialog-field{display:flex;flex-direction:column;gap:4px}
+.dialog input[type=text]{width:100%;min-width:0;padding:9px 12px;min-height:40px;border:1px solid var(--chip);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.dialog input[type=text]:focus{outline:2px solid var(--ink);outline-offset:1px}
+#linkOut{font:500 14px var(--mono)}
+.img-frame{display:flex;justify-content:center;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px}
+.img-frame img{display:block;max-width:100%;max-height:calc(100dvh - 330px);border:1px solid var(--line);border-radius:4px;-webkit-touch-callout:default}
+.dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:4px}
 
 @media (max-width:1000px){
   .split{flex-direction:column;gap:28px}
@@ -339,6 +342,8 @@ footer a{color:inherit}
   #map{height:400px}
 }
 @media (max-width:760px){
+  .dialog{padding:18px 16px 20px}
+  .img-frame img{max-height:calc(100dvh - 300px)}
   .wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;gap:20px}
   h1{font-size:30px}
   .top-actions{width:100%;gap:8px}
