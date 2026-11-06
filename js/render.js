@@ -60,7 +60,7 @@ export function renderSummary() {
     [null, "Sun & air", `UV ${r0(maxOf(S, "uv"))}`, `${uvLevel(maxOf(S, "uv"))} UV · ${airTile()}`]
   ];
   $("#summary").innerHTML = tiles.map(([cls, l, v, d]) => `<div><dt>${l}</dt><dd class="v${cls ? " " + cls : ""}">${v}</dd><dd class="d">${d}</dd></div>`).join("");
-  $("#routeWhen").textContent = `· ${fmtDay(state.startMs)}, ${fmtTime(state.startMs)}`;
+  $("#routeWhen").textContent = `${fmtDay(state.startMs)}, ${fmtTime(state.startMs)}`; // the "· " separator comes from CSS, so phones can drop it when the date gets its own line
 }
 
 export function airTile() {

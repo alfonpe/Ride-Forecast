@@ -52,6 +52,7 @@ button,input,select{font:inherit;color:inherit}
 .title{min-width:0}
 h1{margin-top:6px;font-size:40px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
 h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
+#routeWhen:not(:empty)::before{content:"· "}
 .name-btn{all:unset;cursor:pointer;display:inline;border-radius:4px}
 .name-btn svg{color:var(--faint);margin-left:8px;vertical-align:middle;opacity:.6}
 .name-btn:hover svg{opacity:1;color:var(--ink)}
@@ -331,7 +332,7 @@ footer a{color:inherit}
 .dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:4px}
 
 @media (max-width:1000px){
-  .split{flex-direction:column;gap:28px}
+  .split{flex-direction:column;gap:28px;align-items:stretch}
   .split > *{width:100%}
   .split-main{display:contents}
   .split-main > .block:first-child{order:1}
@@ -343,9 +344,27 @@ footer a{color:inherit}
 }
 @media (max-width:760px){
   .dialog{padding:18px 16px 20px}
+  .img-frame{padding:6px}
   .img-frame img{max-height:calc(100dvh - 300px)}
   .wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;gap:20px}
-  h1{font-size:30px}
+  h1{font-size:26px}
+  h1 .sub{display:block;margin-top:4px;font-size:17px;letter-spacing:-.01em}
+  #routeWhen::before{content:none!important}
+  .detail{padding:16px}
+  .field .hint{white-space:normal;font-size:12px;min-height:0}
+  /* 16px stops iOS Safari from zooming the page in when a field is tapped (it does for anything smaller) */
+  .field input:not([type=checkbox]):not([type=file]),.field select,.dialog input[type=text],#linkOut{font-size:16px}
+  .seg button{min-height:36px;padding:6px 12px}
+  .seg.mini{gap:16px}
+  .seg.mini button{min-height:0;padding:10px 0;margin:-10px 0}
+  .label-row{height:auto;min-height:calc(12px * 1.45)}
+  .check input{width:20px;height:20px}
+  .day-pick .btn{white-space:normal;text-align:left;margin-left:0;width:100%;justify-content:flex-start}
+  .dirbar .btn{flex:1 1 auto}
+  .explain summary{padding:8px 0}
+  .scrub input{height:32px}
+  .leaflet-touch .leaflet-bar a,.leaflet-bar a,.leaflet-bar a:hover{width:40px;height:40px;line-height:38px;font-size:20px}
+  .leaflet-touch .leaflet-control-layers-toggle,.leaflet-control-layers-toggle{width:40px;height:40px}
   .top-actions{width:100%;gap:8px}
   #tzPill{flex-basis:100%}
   .controls>.field{flex:1 1 calc(50% - 7px);max-width:none}
@@ -360,17 +379,13 @@ footer a{color:inherit}
   .pick .cost{display:none}
   .best-chart{height:200px}
   .expo-stats dd{font-size:19px}
-  /* checkpoint table becomes a stack of cards */
-  table{min-width:0}
-  thead{display:none}
-  tbody,tbody tr,tbody td{display:block}
-  tbody tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;padding:10px 4px;border-bottom:1px solid var(--row)}
-  tbody td{border:0;padding:0;white-space:normal;min-width:0;text-align:left}
-  td .dir,td .wx{justify-content:flex-start}
-  tbody tr.on td:first-child{box-shadow:none;padding-left:0}
-  tbody tr.on{box-shadow:inset 3px 0 0 var(--ink);padding-left:10px}
-  tbody td::before{content:attr(data-label);display:block;font-family:var(--body);font-size:11px;color:var(--muted)}
-  tbody td.lead{grid-column:span 3;font-size:15px;font-weight:600}
-  tbody td.lead::before{display:none}
+  /* checkpoint table: stays a table (one line per checkpoint, easy to compare down a column), scrolled sideways
+     with the km column pinned; stacked cards made it ~250 px per checkpoint */
+  table{min-width:0;width:max-content}
+  th,td{padding:8px 8px;font-size:12.5px}
+  th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--bg);padding-right:12px;box-shadow:inset -1px 0 0 var(--line)}
+  tbody tr:hover td:first-child{background:var(--hover)}
+  tbody tr.on td:first-child{background:var(--selected);box-shadow:inset 3px 0 0 var(--ink),inset -1px 0 0 var(--line)}
+  .stopmark{display:block;margin-left:0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
