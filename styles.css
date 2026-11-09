@@ -45,6 +45,7 @@ button,input,select{font:inherit;color:inherit}
 .title{min-width:0}
 h1{margin-top:6px;font-size:40px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
 h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
+#routeWhen:not(:empty)::before{content:"· "}
 .name-btn{all:unset;cursor:pointer;display:inline;border-radius:4px}
 .name-btn svg{color:var(--faint);margin-left:8px;vertical-align:middle;opacity:.6}
 .name-btn:hover svg{opacity:1;color:var(--ink)}
@@ -105,6 +106,10 @@ h1 .sub{font-size:inherit;color:var(--faint);font-weight:400}
 /* inside a field label: small underline tabs, as tall as the label itself */
 .seg.mini button{padding:0;min-height:0;font-size:12px;line-height:1.45;border-radius:0;color:var(--muted);border-bottom:1px solid transparent}
 .seg.mini button[aria-pressed=true]{background:none;color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+
+/* phone-only pieces: folded plan line, "show all" buttons, pinned readout, share menu */
+.plan-bar,.more,.mini-readout,#shareMenuBtn,.share-menu,.about > summary,.cols-toggle{display:none}
+.about{display:contents}
 
 /* banner (shared plan) */
 .banner{padding:14px 16px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px}
@@ -305,6 +310,7 @@ tbody tr:focus-visible{outline-offset:-2px}
 .stopmark{font-size:11px;color:var(--muted);margin-left:6px;font-family:var(--body)}
 footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;max-width:120ch}
 footer a{color:inherit}
+footer .about > p{margin:0}
 
 /* ---------- share dialogs: Route Library's dialog (white panel, thin border, light backdrop) ---------- */
 .imgview{position:fixed;inset:0;z-index:2000;background:rgba(20,20,20,.35);display:flex;padding:16px;overflow-y:auto}
@@ -324,7 +330,7 @@ footer a{color:inherit}
 .dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:4px}
 
 @media (max-width:1000px){
-  .split{flex-direction:column;gap:28px}
+  .split{flex-direction:column;gap:28px;align-items:stretch}
   .split > *{width:100%}
   .split-main{display:contents}
   .split-main > .block:first-child{order:1}
@@ -336,9 +342,27 @@ footer a{color:inherit}
 }
 @media (max-width:760px){
   .dialog{padding:18px 16px 20px}
+  .img-frame{padding:6px}
   .img-frame img{max-height:calc(100dvh - 300px)}
   .wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;gap:20px}
-  h1{font-size:30px}
+  h1{font-size:26px}
+  h1 .sub{display:block;margin-top:4px;font-size:17px;letter-spacing:-.01em}
+  #routeWhen::before{content:none!important}
+  .detail{padding:16px}
+  .field .hint{white-space:normal;font-size:12px;min-height:0}
+  /* 16px stops iOS Safari from zooming the page in when a field is tapped (it does for anything smaller) */
+  .field input:not([type=checkbox]):not([type=file]),.field select,.dialog input[type=text],#linkOut{font-size:16px}
+  .seg button{min-height:36px;padding:6px 12px}
+  .seg.mini{gap:16px}
+  .seg.mini button{min-height:0;padding:10px 0;margin:-10px 0}
+  .label-row{height:auto;min-height:calc(12px * 1.45)}
+  .check input{width:20px;height:20px}
+  .day-pick .btn{white-space:normal;text-align:left;margin-left:0;width:100%;justify-content:flex-start}
+  .dirbar .btn{flex:1 1 auto}
+  .explain summary{padding:8px 0}
+  .scrub input{height:32px}
+  .leaflet-touch .leaflet-bar a,.leaflet-bar a,.leaflet-bar a:hover{width:40px;height:40px;line-height:38px;font-size:20px}
+  .leaflet-touch .leaflet-control-layers-toggle,.leaflet-control-layers-toggle{width:40px;height:40px}
   .top-actions{width:100%;gap:8px}
   #tzPill{flex-basis:100%}
   .controls>.field{flex:1 1 calc(50% - 7px);max-width:none}
@@ -353,17 +377,61 @@ footer a{color:inherit}
   .pick .cost{display:none}
   .best-chart{height:200px}
   .expo-stats dd{font-size:19px}
-  /* checkpoint table becomes a stack of cards */
-  table{min-width:0}
-  thead{display:none}
-  tbody,tbody tr,tbody td{display:block}
-  tbody tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;padding:10px 4px;border-bottom:1px solid var(--row)}
-  tbody td{border:0;padding:0;white-space:normal;min-width:0;text-align:left}
-  td .dir,td .wx{justify-content:flex-start}
-  tbody tr.on td:first-child{box-shadow:none;padding-left:0}
-  tbody tr.on{box-shadow:inset 3px 0 0 var(--ink);padding-left:10px}
-  tbody td::before{content:attr(data-label);display:block;font-family:var(--body);font-size:11px;color:var(--muted)}
-  tbody td.lead{grid-column:span 3;font-size:15px;font-weight:600}
-  tbody td.lead::before{display:none}
+  /* checkpoint table: stays a table (one line per checkpoint, easy to compare down a column), scrolled sideways
+     with the km column pinned; stacked cards made it ~250 px per checkpoint */
+  table{min-width:0;width:max-content}
+  th,td{padding:8px 8px;font-size:12.5px}
+  th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--bg);padding-right:12px;box-shadow:inset -1px 0 0 var(--line)}
+  tbody tr:hover td:first-child{background:var(--hover)}
+  tbody tr.on td:first-child{background:var(--selected);box-shadow:inset 3px 0 0 var(--ink),inset -1px 0 0 var(--line)}
+  .stopmark{display:block;margin-left:0}
+}
+@media (max-width:760px){
+  /* the plan folded into one line (after "Get forecast", and straight away from a shared link) */
+  .plan-folded .controls{display:none}
+  .plan-folded .plan-bar{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+  .plan-line{flex:1;min-width:0;font-size:13px;color:var(--ink);font-family:var(--mono);line-height:1.4}
+  .plan-bar .btn{min-height:40px;padding:8px 16px}
+  .plan-folded .status{margin-top:-8px}
+  /* the plan line already says what the shared plan is */
+  .plan-folded #sharedBanner .panel-head{flex-wrap:nowrap;align-items:center}
+  .plan-folded #sharedBanner .panel-head > div > div.sub:first-of-type{display:none}
+  #sharedBanner h2{font-size:15px}
+  /* hazards and ride notes: the first three, then "Show all" */
+  .notes:not(.expanded) > li:nth-child(n+4){display:none}
+  .notes:not(.expanded) > li:nth-child(3){border-bottom:0}
+  .more{display:inline-flex;align-self:flex-start;align-items:center;min-height:40px;margin-top:-8px;padding:0;border:0;background:none;color:var(--ink);font-size:13px;font-weight:500;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+  /* one-line readout pinned to the top while the map is on screen (the bottom is where the scrubber is dragged) */
+  .mini-readout{display:flex;position:fixed;z-index:1500;left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));
+    flex-wrap:wrap;align-items:center;gap:2px 12px;padding:9px 14px;border:1px solid var(--chip);border-radius:10px;background:var(--bg);color:var(--ink);
+    box-shadow:0 6px 24px rgba(0,0,0,.14);font:500 13px/1.3 var(--mono);text-align:left;cursor:pointer}
+  .mini-readout .mr-when{font-weight:600;flex-basis:100%;font-family:var(--body)}
+  .mini-readout .mr-wx{display:inline-flex;align-items:center;gap:5px}
+  .mini-readout .mr-wx svg{color:var(--muted)}
+  .mini-readout .mr-dim{color:var(--muted);font-weight:400}
+  .mini-readout .chip{font-size:11.5px}
+  /* one Share button; it opens a small menu with the link and the image */
+  #share,#shareImg{display:none}
+  #shareMenuBtn{display:inline-flex}
+  .share-wrap{position:relative}
+  .share-menu:not([hidden]){display:flex;flex-direction:column;position:absolute;z-index:1600;top:calc(100% + 6px);left:0;min-width:190px;padding:6px;border:1px solid var(--chip);border-radius:8px;background:var(--bg);box-shadow:0 8px 28px rgba(0,0,0,.14)}
+  .share-menu button{all:unset;cursor:pointer;padding:12px 12px;border-radius:6px;font-size:14px}
+  .share-menu button:hover,.share-menu button:focus-visible{background:var(--surface-2)}
+  /* route colour: one row you swipe through instead of two rows of buttons */
+  #metric{flex-wrap:nowrap;overflow-x:auto;width:100%;max-width:100%;contain:inline-size;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #metric::-webkit-scrollbar{display:none}
+  #metric button{flex:none}
+  #map{height:clamp(300px,55vh,520px);height:clamp(300px,55svh,520px)}
+  /* best time: the short version of the explanation */
+  #bestSub .long{display:none}
+  /* checkpoints: the six columns that matter on a ride, the rest one tap away */
+  .cols-toggle{display:inline-flex;align-self:flex-start;min-height:36px;padding:6px 12px;font-size:13px}
+  .table-wrap:not(.all-cols) :is(th,td):is(:nth-child(5),:nth-child(6),:nth-child(7),:nth-child(8),:nth-child(11),:nth-child(12),:nth-child(13),:nth-child(14),:nth-child(15)){display:none}
+  .table-wrap:not(.all-cols) td .wx{font-size:0;gap:0}
+  .table-wrap:not(.all-cols) td .wx svg{width:18px;height:18px}
+  /* footer: folded behind "About the data" */
+  .about{display:block}
+  .about > summary{display:list-item;cursor:pointer;color:var(--ink);padding:8px 0}
+  .about p{margin:6px 0 0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

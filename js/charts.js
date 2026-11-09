@@ -212,7 +212,7 @@ export function renderBest() {
   const better = top[0] && !same(top[0]) && mine.score - top[0].score >= 5;
   $("#dayPick").innerHTML = `<span class="t">${fmtTime(mine.ms)}</span><span>home ${fmtTime(mine.end)}${flags.length ? `, <span class="late">${flags.join(", ")}</span>` : ""}</span><span class="cost">${pct(mi.cost)}</span>${dotsHtml(mi.stars)}<span class="parts">${parts.join(" · ") || "as good as a still, dry day"}</span>` +
     (better ? `<button class="btn" type="button" data-ms="${top[0].ms}">Leave at ${fmtTime(top[0].ms)} instead: ${r0(mine.score - top[0].score)} effective min better</button>` : "");
-  $("#bestSub").textContent = `${fmtDay(cur)} · every half hour, scored like Route Library's Weather view: how much worse than the same ride in still, dry air. Shorter bars are better.`;
+  $("#bestSub").innerHTML = `${fmtDay(cur)} · <span class="long">every half hour, scored like Route Library's Weather view: how much worse than the same ride in still, dry air. </span>Shorter bars are better.`;
 
   const { ink, line, tooltip } = chartTheme();
   const datasets = PARTS.map(([k, label, tok]) => ({
@@ -225,11 +225,11 @@ export function renderBest() {
       plugins: { legend: { display: false }, crosshair: { off: true }, bestMarks: { cur: curIdx, stars: I.map(it => it.stars) },
         tooltip: Object.assign({}, tooltip, { mode: "index", intersect: false, filter: i => Math.abs(i.parsed.y) >= 0.05,
           callbacks: { title: it => `Start ${it[0].label} · ${pct(I[it[0].dataIndex].cost)} · ${"●".repeat(I[it[0].dataIndex].stars)}`, label: i => ` ${i.dataset.label}: ${i.parsed.y >= 0 ? "+" : "−"}${r0(Math.abs(I[i.dataIndex].parts[PARTS[i.datasetIndex][0]]))} min`, footer: it => why(B[it[0].dataIndex]) } }) },
-      scales: { x: { stacked: true, grid: { display: false }, border: { color: line }, ticks: { autoSkip: false, maxRotation: 0, color: ink, padding: 6, font: { family: css("--mono"), size: 11 }, callback: function (v, i) { const every = this.chart.width < 560 ? 4 : this.chart.width < 1500 ? 2 : 1; return B[i] && msToWall(B[i].ms).endsWith(":00") && +msToWall(B[i].ms).slice(11, 13) % every === 0 ? fmtTime(B[i].ms) : ""; } } },
+      scales: { x: { stacked: true, grid: { display: false }, border: { color: line }, ticks: { autoSkip: false, maxRotation: 0, color: ink, padding: 6, font: { family: css("--mono"), size: 11 }, callback: function (v, i) { const every = this.chart.width < 380 ? 6 : this.chart.width < 560 ? 4 : this.chart.width < 1500 ? 2 : 1; return B[i] && msToWall(B[i].ms).endsWith(":00") && +msToWall(B[i].ms).slice(11, 13) % every === 0 ? fmtTime(B[i].ms) : ""; } } },
         y: { stacked: true, grid: { color: line }, border: { display: false }, suggestedMin: 0, ticks: { font: { family: css("--mono"), size: 11 }, callback: v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v) + "%" } } },
       onClick: (_, els) => { if (els.length) document.dispatchEvent(new CustomEvent("rf:start", { detail: B[els[0].index].ms })); } } });
   $("#bestLegend").innerHTML = PARTS.map(([, label, tok]) => `<span class="key"><b class="sq" style="background:var(${tok})"></b>${label}</span>`).join("") +
-    `<span class="key"><b class="sq" style="background:var(--tail)"></b>Wind helps</span><span>Click a bar to use that start.</span>`;
+    `<span class="key"><b class="sq" style="background:var(--tail)"></b>Wind helps</span><span>Tap a bar to use that start.</span>`;
 }
 
 /* ---------- wind around you: time with the wind from each side ----------
