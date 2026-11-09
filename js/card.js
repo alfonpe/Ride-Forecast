@@ -13,7 +13,7 @@ import { rainLevel } from "./weather.js";
    Drawn on a canvas, synchronously, so it can be shared straight from the tap (phones require that).
    No map tiles behind the route: browsers refuse to export a canvas that contains another site's images. */
 
-const W = 1080, H = 1350, PAD = 64;
+const W = 1080, H = 1350, H_MAX = 1650, PAD = 64; // 4:5, taller only when the hazard list needs it
 const FONT = '"IBM Plex Sans",system-ui,sans-serif', BODY = '"IBM Plex Sans",system-ui,sans-serif', MONO = '"IBM Plex Mono",ui-monospace,monospace';
 const plain = html => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
@@ -206,10 +206,10 @@ function wrap(g, text, maxW) {
 }
 
 export function drawCard() {
-  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const c = document.createElement("canvas"); c.width = W; c.height = H_MAX;
   const g = c.getContext("2d"), S = state.samples, tr = state.track, sim = state.sim;
   const ink = css("--ink"), muted = css("--muted"), line = css("--line"), surface = css("--surface"), accent = css("--accent");
-  g.fillStyle = css("--bg"); g.fillRect(0, 0, W, H);
+  g.fillStyle = css("--bg"); g.fillRect(0, 0, W, H_MAX);
   g.textBaseline = "alphabetic";
 
   // header
@@ -414,17 +414,18 @@ export function drawCard() {
   g.strokeStyle = line; g.lineWidth = 2; g.beginPath(); g.moveTo(PAD, end); g.lineTo(W - PAD, end); g.stroke();
   y = end + 58;
 
-  // what matters most: hazards first, then rain and kit advice
+  // what matters most: hazards first, then rain and kit advice. Every hazard numbered on the map is listed (the card
+  // grows if it must); rain and kit advice only goes where it fits in the standard height
   const lines = [
     ...shownHaz.map((z, k) => ({ col: css(z.sev === "bad" ? "--head" : "--cross"), n: k + 1, text: `${HAZ[z.type]} ${plain(hazWhere(z))}` })),
     ...(state.notes || []).filter(([, t]) => /^(Light|Moderate|Heavy|Violent|Drizzle|Showers|Kit)/.test(t)).map(([cls, t]) => ({ col: css(cls === "bad" ? "--head" : cls === "warn" ? "--cross" : "--accent"), text: plain(t) }))
-  ].slice(0, 3);
+  ].slice(0, Math.max(3, shownHaz.length));
   g.font = `500 27px ${BODY}`;
   for (const l of lines) {
     g.font = `500 27px ${BODY}`; // (a number badge changes the font)
-    // up to two lines each; whatever doesn't fit above the footer is shortened, not dropped
-    const room = Math.min(2, Math.floor((H - 130 - y) / 36) + 1);
-    if (room < 1) break;
+    // up to two lines each; advice that doesn't fit above the footer is shortened, or left out if no line is free
+    const room = l.n ? 2 : Math.min(2, Math.floor((H - 130 - y) / 36) + 1);
+    if (room < 1) continue;
     let rows = wrap(g, l.text, W - 2 * PAD - 34);
     if (rows.length > room) {
       rows = rows.slice(0, room);
@@ -438,11 +439,15 @@ export function drawCard() {
     y += rows.length * 36 + 10;
   }
 
-  // footer
-  g.strokeStyle = line; g.lineWidth = 2; g.beginPath(); g.moveTo(PAD, H - 108); g.lineTo(W - PAD, H - 108); g.stroke();
+  // footer, then trim the canvas to the height used
+  const h = Math.min(H_MAX, Math.max(H, y - 46 + 130)); // the last line sits 22 px above the footer rule, as before
+  g.strokeStyle = line; g.lineWidth = 2; g.beginPath(); g.moveTo(PAD, h - 108); g.lineTo(W - PAD, h - 108); g.stroke();
   g.fillStyle = muted; g.font = `400 22px ${MONO}`;
-  g.fillText("Ride Forecast · weather along your route, when you ride it", PAD, H - 66);
-  return c;
+  g.fillText("Ride Forecast · weather along your route, when you ride it", PAD, h - 66);
+  if (h === H_MAX) return c;
+  const out = document.createElement("canvas"); out.width = W; out.height = h;
+  out.getContext("2d").drawImage(c, 0, 0);
+  return out;
 }
 
 // a PNG File built synchronously, so navigator.share still counts as part of the tap
